@@ -1,0 +1,38 @@
+import { createBrowserRouter } from "react-router-dom";
+import { lazy, Suspense } from "react";
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
+const LoginPage        = lazy(() => import("@/app/pages/LoginPage"));
+const DashboardPage    = lazy(() => import("@/app/pages/DashboardPage"));
+const PatientsPage     = lazy(() => import("@/app/pages/PatientsPage"));
+const AppointmentsPage = lazy(() => import("@/app/pages/AppointmentsPage"));
+const DoctorsPage      = lazy(() => import("@/app/pages/DoctorsPage"));
+const NotFoundPage     = lazy(() => import("@/app/pages/NotFoundPage"));
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center h-64">
+      <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
+
+function Wrap({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
+}
+
+export const router = createBrowserRouter([
+  { path: "/login", element: <Wrap><LoginPage /></Wrap> },
+  {
+    path: "/",
+    element: <DashboardLayout />,
+    children: [
+      { index: true,          element: <Wrap><DashboardPage /></Wrap> },
+      { path: "dashboard",    element: <Wrap><DashboardPage /></Wrap> },
+      { path: "patients",     element: <Wrap><PatientsPage /></Wrap> },
+      { path: "appointments", element: <Wrap><AppointmentsPage /></Wrap> },
+      { path: "doctors",      element: <Wrap><DoctorsPage /></Wrap> },
+    ],
+  },
+  { path: "*", element: <Wrap><NotFoundPage /></Wrap> },
+]);

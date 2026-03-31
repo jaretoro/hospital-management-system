@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-surface-muted text-slate-800 font-sans text-sm;
+    min-height: 100dvh;
+  }
+  :focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-primary-500 rounded;
+  }
+  ::-webkit-scrollbar       { @apply w-1.5 h-1.5; }
+  ::-webkit-scrollbar-track { @apply bg-transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-slate-300 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-slate-400; }
+}
+
+@layer components {
+  .page-container { @apply p-6 max-w-screen-2xl mx-auto animate-fade-in; }
+  .card    { @apply bg-surface rounded-xl border border-border shadow-card p-5; }
+  .card-md { @apply bg-surface rounded-xl border border-border shadow-card-md p-6; }
+  .section-title { @apply text-lg font-semibold text-slate-800 tracking-tight; }
+  .skeleton { @apply relative overflow-hidden bg-slate-100 rounded-lg; }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.6) 50%, transparent 100%);
+    animation: shimmer 1.5s infinite;
+  }
+  .badge         { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium; }
+  .badge-success { @apply badge bg-success-light text-success-dark; }
+  .badge-warning { @apply badge bg-warning-light text-warning-dark; }
+  .badge-danger  { @apply badge bg-danger-light  text-danger-dark;  }
+  .badge-info    { @apply badge bg-info-light    text-info-dark;    }
+  .badge-neutral { @apply badge bg-slate-100     text-slate-600;    }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .sidebar-transition {
+    transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1),
+                transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
