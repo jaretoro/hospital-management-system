@@ -4,9 +4,11 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 
 const LoginPage        = lazy(() => import("@/app/pages/LoginPage"));
 const DashboardPage    = lazy(() => import("@/app/pages/DashboardPage"));
-const PatientsPage     = lazy(() => import("@/app/pages/PatientsPage"));
-const AppointmentsPage = lazy(() => import("@/app/pages/AppointmentsPage"));
-const DoctorsPage      = lazy(() => import("@/app/pages/DoctorsPage"));
+const StaffsPage       = lazy(() => import("@/app/pages/StaffsPage"));
+const MedicationsPage  = lazy(() => import("@/app/pages/MedicationsPage"));
+const ReportsPage      = lazy(() => import("@/app/pages/ReportsPage"));
+const PatientQueuePage = lazy(() => import("@/app/pages/PatientQueuePage"));
+const ProfilePage      = lazy(() => import("@/app/pages/ProfilePage"));
 const NotFoundPage     = lazy(() => import("@/app/pages/NotFoundPage"));
 
 function PageLoader() {
@@ -27,11 +29,13 @@ export const router = createBrowserRouter([
     path: "/",
     element: <DashboardLayout />,
     children: [
-      { index: true,          element: <Wrap><DashboardPage /></Wrap> },
-      { path: "dashboard",    element: <Wrap><DashboardPage /></Wrap> },
-      { path: "patients",     element: <Wrap><PatientsPage /></Wrap> },
-      { path: "appointments", element: <Wrap><AppointmentsPage /></Wrap> },
-      { path: "doctors",      element: <Wrap><DoctorsPage /></Wrap> },
+      { index: true,            element: <Wrap><DashboardPage /></Wrap>    },
+      { path: "dashboard",      element: <Wrap><DashboardPage /></Wrap>    },
+      { path: "staffs",         element: <Wrap><StaffsPage /></Wrap>       },
+      { path: "medications",    element: <Wrap><MedicationsPage /></Wrap>  },
+      { path: "reports",        element: <Wrap><ReportsPage /></Wrap>      },
+      { path: "patient-queue",  element: <Wrap><PatientQueuePage /></Wrap> },
+      { path: "profile",        element: <Wrap><ProfilePage /></Wrap>      },
     ],
   },
   { path: "*", element: <Wrap><NotFoundPage /></Wrap> },
