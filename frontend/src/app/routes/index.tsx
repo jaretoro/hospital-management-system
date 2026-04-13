@@ -2,14 +2,14 @@ import { createBrowserRouter } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 
-const LoginPage        = lazy(() => import("@/app/pages/LoginPage"));
-const DashboardPage    = lazy(() => import("@/app/pages/DashboardPage"));
-const StaffsPage       = lazy(() => import("@/app/pages/StaffsPage"));
-const MedicationsPage  = lazy(() => import("@/app/pages/MedicationsPage"));
-const ReportsPage      = lazy(() => import("@/app/pages/ReportsPage"));
-const PatientQueuePage = lazy(() => import("@/app/pages/PatientQueuePage"));
-const ProfilePage      = lazy(() => import("@/app/pages/ProfilePage"));
-const NotFoundPage     = lazy(() => import("@/app/pages/NotFoundPage"));
+const LoginPage          = lazy(() => import("@/app/pages/LoginPage"));
+const DashboardPage      = lazy(() => import("@/app/pages/DashboardPage"));
+const StaffsPage         = lazy(() => import("@/app/pages/StaffsPage"));
+const MedicationsPage    = lazy(() => import("@/app/pages/MedicationsPage"));
+const ReportsPage        = lazy(() => import("@/app/pages/ReportsPage"));
+const ConsultationPage   = lazy(() => import("@/app/pages/ConsultationPage"));
+const ProfilePage        = lazy(() => import("@/app/pages/ProfilePage"));
+const NotFoundPage       = lazy(() => import("@/app/pages/NotFoundPage"));
 
 function PageLoader() {
   return (
@@ -29,13 +29,13 @@ export const router = createBrowserRouter([
     path: "/",
     element: <DashboardLayout />,
     children: [
-      { index: true,            element: <Wrap><DashboardPage /></Wrap>    },
-      { path: "dashboard",      element: <Wrap><DashboardPage /></Wrap>    },
-      { path: "staffs",         element: <Wrap><StaffsPage /></Wrap>       },
-      { path: "medications",    element: <Wrap><MedicationsPage /></Wrap>  },
-      { path: "reports",        element: <Wrap><ReportsPage /></Wrap>      },
-      { path: "patient-queue",  element: <Wrap><PatientQueuePage /></Wrap> },
-      { path: "profile",        element: <Wrap><ProfilePage /></Wrap>      },
+      { index: true,           element: <Wrap><DashboardPage /></Wrap>    },
+      { path: "dashboard",     element: <Wrap><DashboardPage /></Wrap>    },
+      { path: "staffs",        element: <Wrap><StaffsPage /></Wrap>       },
+      { path: "medications",   element: <Wrap><MedicationsPage /></Wrap>  },
+      { path: "reports",       element: <Wrap><ReportsPage /></Wrap>      },
+      { path: "consultation",  element: <Wrap><ConsultationPage /></Wrap> },
+      { path: "profile",       element: <Wrap><ProfilePage /></Wrap>      },
     ],
   },
   { path: "*", element: <Wrap><NotFoundPage /></Wrap> },

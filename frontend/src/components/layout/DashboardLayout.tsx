@@ -6,10 +6,10 @@ import { Topbar } from "./Topbar";
 const PAGE_TITLES: Record<string, string> = {
   "/":              "Dashboard",
   "/dashboard":     "Dashboard",
-  "/staffs":        "Staffs",
+  "/staffs":        "Staff management",
   "/medications":   "Medications",
   "/reports":       "Report analytics",
-  "/patient-queue": "Patient Queue",
+  "/consultation":  "Consultation",
   "/profile":       "Profile",
   "/settings":      "Settings",
 };
