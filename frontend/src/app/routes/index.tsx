@@ -10,6 +10,7 @@ const ReportsPage        = lazy(() => import("@/app/pages/ReportsPage"));
 const ConsultationPage   = lazy(() => import("@/app/pages/ConsultationPage"));
 const ProfilePage        = lazy(() => import("@/app/pages/ProfilePage"));
 const NotFoundPage       = lazy(() => import("@/app/pages/NotFoundPage"));
+const DoctorDashboard    = lazy(() => import("@/app/doctors/pages/DoctorDashboard"))
 
 function PageLoader() {
   return (
@@ -29,13 +30,14 @@ export const router = createBrowserRouter([
     path: "/",
     element: <DashboardLayout />,
     children: [
-      { index: true,           element: <Wrap><DashboardPage /></Wrap>    },
-      { path: "dashboard",     element: <Wrap><DashboardPage /></Wrap>    },
-      { path: "staffs",        element: <Wrap><StaffsPage /></Wrap>       },
-      { path: "medications",   element: <Wrap><MedicationsPage /></Wrap>  },
-      { path: "reports",       element: <Wrap><ReportsPage /></Wrap>      },
-      { path: "consultation",  element: <Wrap><ConsultationPage /></Wrap> },
-      { path: "profile",       element: <Wrap><ProfilePage /></Wrap>      },
+      { index: true,             element: <Wrap><DashboardPage /></Wrap>    },
+      { path: "dashboard",       element: <Wrap><DashboardPage /></Wrap>    },
+      { path: "staffs",          element: <Wrap><StaffsPage /></Wrap>       },
+      { path: "medications",     element: <Wrap><MedicationsPage /></Wrap>  },
+      { path: "reports",         element: <Wrap><ReportsPage /></Wrap>      },
+      { path: "consultation",    element: <Wrap><ConsultationPage /></Wrap> },
+      { path: "profile",         element: <Wrap><ProfilePage /></Wrap>      },
+      { path: "doctor-dashboard",element: <Wrap><DoctorDashboard /></Wrap>  },
     ],
   },
   { path: "*", element: <Wrap><NotFoundPage /></Wrap> },
