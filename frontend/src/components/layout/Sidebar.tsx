@@ -23,12 +23,13 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard",    to: "/dashboard",    icon: <LayoutDashboard size={20} /> },
-  { label: "Staffs",       to: "/staffs",       icon: <Users           size={20} /> },
-  { label: "Medications",  to: "/medications",  icon: <Pill            size={20} /> },
-  { label: "Reports",      to: "/reports",      icon: <FileBarChart2   size={20} /> },
-  { label: "Consultation", to: "/consultation", icon: <Stethoscope     size={20} /> },
-  { label: "Profile",      to: "/profile",      icon: <UserCircle      size={20} /> },
+  { label: "Dashboard",    to: "/dashboard",     icon: <LayoutDashboard size={20} /> },
+  { label: "Staffs",       to: "/staffs",        icon: <Users           size={20} /> },
+  { label: "Medications",  to: "/medications",   icon: <Pill            size={20} /> },
+  { label: "Reports",      to: "/reports",       icon: <FileBarChart2   size={20} /> },
+  { label: "Consultation", to: "/consultation",  icon: <Stethoscope     size={20} /> },
+  { label: "Profile",      to: "/profile",       icon: <UserCircle      size={20} /> },
+  {label: "Dashboard", to: "/doctor-dashboard,", icon: <LayoutDashboard size={20} /> },
 ];
 
 const BOTTOM_ITEMS: NavItem[] = [
