@@ -4,25 +4,33 @@ import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 
 const PAGE_TITLES: Record<string, string> = {
-  "/":              "Dashboard",
-  "/dashboard":     "Dashboard",
-  "/staffs":        "Staff management",
-  "/medications":   "Medications",
-  "/reports":       "Report analytics",
-  "/consultation":  "Consultation",
-  "/profile":       "Profile",
-  "/settings":      "Settings",
+  "/doctor/dashboard":    "Dashboard",
+  "/doctor/staffs":       "Staff management",
+  "/doctor/medications":  "Medications",
+  "/doctor/reports":      "Report analytics",
+  "/doctor/consultation": "Consultation",
+  "/doctor/profile":      "Profile",
+  "/doctor/settings":     "Settings",
 };
 
-export function DashboardLayout() {
+export function DoctorLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const location  = useLocation();
   const pageTitle = PAGE_TITLES[location.pathname] ?? "SAHCOMed";
 
   return (
     <div className="min-h-screen bg-white">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
-      <Topbar sidebarCollapsed={collapsed} pageTitle={pageTitle} />
+      <Sidebar
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((v) => !v)}
+        role="doctor"
+      />
+      <Topbar
+  sidebarCollapsed={collapsed}
+  pageTitle={pageTitle}
+  userName="Bolanle Olatunji"
+  userRole="Doctor"
+/>
       <main
         style={{
           paddingLeft: collapsed ? "72px" : "260px",

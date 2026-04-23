@@ -1,15 +1,29 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import { lazy, Suspense } from "react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { AdminLayout }  from "@/components/layout/AdminLayout";
+import { DoctorLayout } from "@/components/layout/DoctorLayout";
 
-const LoginPage          = lazy(() => import("@/app/pages/LoginPage"));
-const DashboardPage      = lazy(() => import("@/app/pages/DashboardPage"));
-const StaffsPage         = lazy(() => import("@/app/pages/StaffsPage"));
-const MedicationsPage    = lazy(() => import("@/app/pages/MedicationsPage"));
-const ReportsPage        = lazy(() => import("@/app/pages/ReportsPage"));
-const ConsultationPage   = lazy(() => import("@/app/pages/ConsultationPage"));
-const ProfilePage        = lazy(() => import("@/app/pages/ProfilePage"));
-const NotFoundPage       = lazy(() => import("@/app/pages/NotFoundPage"));
+// ── Shared ────────────────────────────────────────────────────
+const LoginPage    = lazy(() => import("@/app/pages/LoginPage"));
+const NotFoundPage = lazy(() => import("@/app/pages/NotFoundPage"));
+
+// ── Admin pages ───────────────────────────────────────────────
+const AdminDashboard    = lazy(() => import("@/app/admin/pages/DashboardPage"));
+const AdminStaffs       = lazy(() => import("@/app/admin/pages/StaffsPage"));
+const AdminMedications  = lazy(() => import("@/app/admin/pages/MedicationsPage"));
+const AdminReports      = lazy(() => import("@/app/admin/pages/ReportsPage"));
+const AdminConsultation = lazy(() => import("@/app/admin/pages/ConsultationPage"));
+const AdminProfile      = lazy(() => import("@/app/admin/pages/ProfilePage"));
+
+// ── Doctor pages ──────────────────────────────────────────────
+const DoctorDashboard    = lazy(() => import("@/app/doctor/pages/DoctorDashboardPage"));
+const DoctorConsultation = lazy(() => import("@/app/doctor/pages/DoctorConsultationPage"));
+const DoctorProfile      = lazy(() => import("@/app/doctor/pages/DoctorProfilePage"));
+
+// ── Shared pages (same content, different layout) ─────────────
+const SharedStaffs      = lazy(() => import("@/app/admin/pages/StaffsPage"));
+const SharedMedications = lazy(() => import("@/app/admin/pages/MedicationsPage"));
+const SharedReports     = lazy(() => import("@/app/admin/pages/ReportsPage"));
 
 function PageLoader() {
   return (
@@ -24,19 +38,40 @@ function Wrap({ children }: { children: React.ReactNode }) {
 }
 
 export const router = createBrowserRouter([
-  { path: "/login", element: <Wrap><LoginPage /></Wrap> },
+  // Root → login
+  { path: "/",      element: <Navigate to="/login" replace /> },
+  { path: "/login", element: <Wrap><LoginPage /></Wrap>       },
+
+  // ── Admin ─────────────────────────────────────────────────
   {
-    path: "/",
-    element: <DashboardLayout />,
+    path: "/admin",
+    element: <AdminLayout />,
     children: [
-      { index: true,           element: <Wrap><DashboardPage /></Wrap>    },
-      { path: "dashboard",     element: <Wrap><DashboardPage /></Wrap>    },
-      { path: "staffs",        element: <Wrap><StaffsPage /></Wrap>       },
-      { path: "medications",   element: <Wrap><MedicationsPage /></Wrap>  },
-      { path: "reports",       element: <Wrap><ReportsPage /></Wrap>      },
-      { path: "consultation",  element: <Wrap><ConsultationPage /></Wrap> },
-      { path: "profile",       element: <Wrap><ProfilePage /></Wrap>      },
+      { index: true,          element: <Navigate to="/admin/dashboard" replace /> },
+      { path: "dashboard",    element: <Wrap><AdminDashboard /></Wrap>    },
+      { path: "staffs",       element: <Wrap><AdminStaffs /></Wrap>       },
+      { path: "medications",  element: <Wrap><AdminMedications /></Wrap>  },
+      { path: "reports",      element: <Wrap><AdminReports /></Wrap>      },
+      { path: "consultation", element: <Wrap><AdminConsultation /></Wrap> },
+      { path: "profile",      element: <Wrap><AdminProfile /></Wrap>      },
     ],
   },
+
+  // ── Doctor ────────────────────────────────────────────────
+  {
+    path: "/doctor",
+    element: <DoctorLayout />,
+    children: [
+      { index: true,          element: <Navigate to="/doctor/dashboard" replace /> },
+      { path: "dashboard",    element: <Wrap><DoctorDashboard /></Wrap>    },
+      { path: "staffs",       element: <Wrap><SharedStaffs /></Wrap>       },
+      { path: "medications",  element: <Wrap><SharedMedications /></Wrap>  },
+      { path: "reports",      element: <Wrap><SharedReports /></Wrap>      },
+      { path: "consultation", element: <Wrap><DoctorConsultation /></Wrap> },
+      { path: "profile",      element: <Wrap><DoctorProfile /></Wrap>      },
+    ],
+  },
+
+  // 404
   { path: "*", element: <Wrap><NotFoundPage /></Wrap> },
 ]);
