@@ -25,7 +25,7 @@ interface NavItem {
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
   { label: "Dashboard",    to: "/admin/dashboard",    icon: <LayoutDashboard size={20} /> },
-  { label: "Staffs",       to: "/admin/staffs",       icon: <Users           size={20} /> },
+  { label: "Patients",     to: "/admin/staffs",       icon: <Users           size={20} /> },
   { label: "Medications",  to: "/admin/medications",  icon: <Pill            size={20} /> },
   { label: "Reports",      to: "/admin/reports",      icon: <FileBarChart2   size={20} /> },
   { label: "Consultation", to: "/admin/consultation", icon: <Stethoscope     size={20} /> },
@@ -34,20 +34,26 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
 
 const DOCTOR_NAV_ITEMS: NavItem[] = [
   { label: "Dashboard",    to: "/doctor/dashboard",    icon: <LayoutDashboard size={20} /> },
-  { label: "Staffs",       to: "/doctor/staffs",       icon: <Users           size={20} /> },
+  { label: "Patients",     to: "/doctor/staffs",       icon: <Users           size={20} /> },
   { label: "Medications",  to: "/doctor/medications",  icon: <Pill            size={20} /> },
   { label: "Reports",      to: "/doctor/reports",      icon: <FileBarChart2   size={20} /> },
   { label: "Consultation", to: "/doctor/consultation", icon: <Stethoscope     size={20} /> },
   { label: "Profile",      to: "/doctor/profile",      icon: <UserCircle      size={20} /> },
 ];
 
-const BOTTOM_ITEMS: NavItem[] = [
-  { label: "Settings", to: "/settings", icon: <Settings size={20} /> },
-  { label: "Logout",   to: "/login",    icon: <LogOut   size={20} /> },
+const ADMIN_BOTTOM_ITEMS: NavItem[] = [
+  { label: "Settings", to: "/admin/settings", icon: <Settings size={20} /> },
+  { label: "Logout",   to: "/login",          icon: <LogOut   size={20} /> },
 ];
 
-export function Sidebar({ collapsed, onToggle, role }: SidebarProps) {
-  const NAV_ITEMS = role === "admin" ? ADMIN_NAV_ITEMS : DOCTOR_NAV_ITEMS;
+const DOCTOR_BOTTOM_ITEMS: NavItem[] = [
+  { label: "Settings", to: "/doctor/settings", icon: <Settings size={20} /> },
+  { label: "Logout",   to: "/login",           icon: <LogOut   size={20} /> },
+];
+
+export function Sidebar({ collapsed, role }: SidebarProps) {
+  const NAV_ITEMS    = role === "admin" ? ADMIN_NAV_ITEMS    : DOCTOR_NAV_ITEMS;
+  const BOTTOM_ITEMS = role === "admin" ? ADMIN_BOTTOM_ITEMS : DOCTOR_BOTTOM_ITEMS;
 
   return (
     <aside className={cn(
@@ -55,10 +61,7 @@ export function Sidebar({ collapsed, onToggle, role }: SidebarProps) {
       collapsed ? "w-sidebar-w-sm" : "w-sidebar-w"
     )}>
       {/* Logo */}
-      <div className={cn(
-        "flex items-center px-6 h-topbar-h shrink-0",
-        collapsed && "justify-center px-2"
-      )}>
+      <div className={cn("flex items-center px-6 h-topbar-h shrink-0", collapsed && "justify-center px-2")}>
         {collapsed ? (
           <span className="font-bold text-primary-500 text-lg">S</span>
         ) : (
@@ -103,10 +106,7 @@ function SidebarLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
     >
       {({ isActive }) => (
         <>
-          <span className={cn(
-            "shrink-0",
-            isActive ? "text-white" : "text-primary-500"
-          )}>
+          <span className={cn("shrink-0", isActive ? "text-white" : "text-primary-500")}>
             {item.icon}
           </span>
           {!collapsed && <span>{item.label}</span>}

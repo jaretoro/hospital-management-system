@@ -91,34 +91,98 @@ function QueueStatusBadge({ status }: { status: string }) {
 function StethoscopeIllustration() {
   return (
     <svg
-      width="180"
-      height="160"
-      viewBox="0 0 180 160"
+      width="200"
+      height="170"
+      viewBox="0 0 200 170"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className="shrink-0"
     >
-      <ellipse cx="42" cy="18" rx="6" ry="8" fill="#1e293b" transform="rotate(-15 42 18)" />
-      <ellipse cx="98" cy="18" rx="6" ry="8" fill="#1e293b" transform="rotate(15 98 18)" />
-      <path d="M42 24 C42 38 48 46 70 46 C92 46 98 38 98 24" stroke="#334155" strokeWidth="6" strokeLinecap="round" fill="none" />
-      <path d="M42 24 C42 38 48 46 70 46 C92 46 98 38 98 24" stroke="#475569" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.4" />
-      <path d="M70 46 C70 68 67 88 63 108 C60 122 61 130 70 136" stroke="#334155" strokeWidth="7" strokeLinecap="round" fill="none" />
-      <path d="M70 46 C70 68 67 88 63 108 C60 122 61 130 70 136" stroke="#1e293b" strokeWidth="7" strokeLinecap="round" fill="none" opacity="0.2" transform="translate(2, 2)" />
-      <path d="M70 46 C71 65 69 84 66 103" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.35" />
-      <circle cx="70" cy="138" r="18" fill="#e2e8f0" />
-      <circle cx="70" cy="138" r="15" fill="#FF7221" />
-      <circle cx="70" cy="138" r="10" fill="#ff9a5c" />
-      <circle cx="70" cy="138" r="5"  fill="#FF7221" />
-      <circle cx="64" cy="132" r="3.5" fill="white" opacity="0.35" />
-      <circle cx="67" cy="130" r="1.5" fill="white" opacity="0.25" />
-      <circle cx="70" cy="138" r="18" stroke="#cbd5e1" strokeWidth="1" fill="none" />
-      <circle cx="148" cy="25"  r="5"   fill="#FF7221" opacity="0.25" />
-      <circle cx="162" cy="52"  r="3.5" fill="#FF7221" opacity="0.18" />
-      <circle cx="145" cy="72"  r="2.5" fill="#FF7221" opacity="0.22" />
-      <circle cx="20"  cy="72"  r="3.5" fill="#FF7221" opacity="0.18" />
-      <circle cx="10"  cy="48"  r="2.5" fill="#FF7221" opacity="0.22" />
-      <circle cx="155" cy="100" r="2"   fill="#FF7221" opacity="0.15" />
-      <circle cx="15"  cy="100" r="2"   fill="#FF7221" opacity="0.15" />
+      {/* ── Purple blob background ───────────────────────── */}
+      <ellipse cx="110" cy="90" rx="75" ry="55" fill="#EEE8FF" opacity="0.7" />
+
+      {/* ── Left earpiece (blue) ─────────────────────────── */}
+      <circle cx="55"  cy="28" r="7" fill="#4A90D9" />
+      <circle cx="55"  cy="28" r="4" fill="#6AAFE6" />
+      <circle cx="53"  cy="26" r="1.5" fill="white" opacity="0.6" />
+
+      {/* ── Right earpiece (blue) ────────────────────────── */}
+      <circle cx="105" cy="22" r="7" fill="#4A90D9" />
+      <circle cx="105" cy="22" r="4" fill="#6AAFE6" />
+      <circle cx="103" cy="20" r="1.5" fill="white" opacity="0.6" />
+
+      {/* ── Ear tubes ────────────────────────────────────── */}
+      <path
+        d="M55 35 C55 52 62 60 80 60 C98 60 105 52 105 30"
+        stroke="#1a1a2e"
+        strokeWidth="5"
+        strokeLinecap="round"
+        fill="none"
+      />
+      {/* Tube highlight */}
+      <path
+        d="M55 35 C55 52 62 60 80 60 C98 60 105 52 105 30"
+        stroke="#3a3a5e"
+        strokeWidth="2"
+        strokeLinecap="round"
+        fill="none"
+        opacity="0.4"
+      />
+
+      {/* ── Main tube going down ─────────────────────────── */}
+      <path
+        d="M80 60 C80 85 76 105 70 125 C66 138 67 145 78 150"
+        stroke="#1a1a2e"
+        strokeWidth="7"
+        strokeLinecap="round"
+        fill="none"
+      />
+      {/* Shadow */}
+      <path
+        d="M80 60 C80 85 76 105 70 125 C66 138 67 145 78 150"
+        stroke="#000"
+        strokeWidth="7"
+        strokeLinecap="round"
+        fill="none"
+        opacity="0.15"
+        transform="translate(2,2)"
+      />
+      {/* Highlight */}
+      <path
+        d="M80 60 C81 80 78 98 73 118"
+        stroke="#4a4a7e"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        fill="none"
+        opacity="0.4"
+      />
+
+      {/* ── Chest piece outer ring ────────────────────────── */}
+      <circle cx="78" cy="152" r="20" fill="#c8ccd4" />
+      <circle cx="78" cy="152" r="18" fill="#e8eaed" />
+
+      {/* ── Chest piece body ─────────────────────────────── */}
+      <circle cx="78" cy="152" r="15" fill="#d0d4db" />
+      <circle cx="78" cy="152" r="12" fill="#b8bcc4" />
+
+      {/* ── Blue glass center ─────────────────────────────── */}
+      <circle cx="78" cy="152" r="9"  fill="#4A90D9" />
+      <circle cx="78" cy="152" r="7"  fill="#5BA3E8" />
+      <circle cx="78" cy="152" r="4"  fill="#7BBCF0" />
+
+      {/* ── Glass shine ──────────────────────────────────── */}
+      <circle cx="74" cy="148" r="2.5" fill="white" opacity="0.5" />
+      <circle cx="76" cy="146" r="1"   fill="white" opacity="0.35" />
+
+      {/* ── Chest piece screws ────────────────────────────── */}
+      <circle cx="66" cy="152" r="1.5" fill="#a0a4ac" />
+      <circle cx="90" cy="152" r="1.5" fill="#a0a4ac" />
+
+      {/* ── Ripple lines around chest piece ─────────────── */}
+      <path d="M58 138 Q48 145 50 158" stroke="#d0d4db" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+      <path d="M55 135 Q43 143 46 160" stroke="#d0d4db" strokeWidth="1"   fill="none" strokeLinecap="round" opacity="0.6" />
+      <path d="M98 138 Q108 145 106 158" stroke="#d0d4db" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+      <path d="M101 135 Q113 143 110 160" stroke="#d0d4db" strokeWidth="1"  fill="none" strokeLinecap="round" opacity="0.6" />
     </svg>
   );
 }

@@ -5,12 +5,13 @@ import { Topbar } from "./Topbar";
 
 const PAGE_TITLES: Record<string, string> = {
   "/admin/dashboard":    "Dashboard",
-  "/admin/staffs":       "Staff management",
+  "/admin/staffs":       "Patient management",
   "/admin/medications":  "Medications",
   "/admin/reports":      "Report analytics",
   "/admin/consultation": "Consultation",
   "/admin/profile":      "Profile",
   "/admin/settings":     "Settings",
+  "/admin/notifications": "Notifications",
 };
 
 export function AdminLayout() {

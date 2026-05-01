@@ -51,3 +51,33 @@
                 transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
+/* ── Print styles ────────────────────────────────────────────── */
+@media print {
+  aside,
+  header {
+    display: none !important;
+  }
+
+  main {
+    padding-left: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  td, th {
+    border: 1px solid #e2e8f0 !important;
+    padding: 8px 12px !important;
+  }
+
+  tr {
+    page-break-inside: avoid;
+  }
+}

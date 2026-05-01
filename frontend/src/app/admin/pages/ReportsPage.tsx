@@ -10,6 +10,8 @@ interface DiagnosisReport {
   totalMale: number;
 }
 
+type Period = "Weekly" | "Monthly" | "Yearly";
+
 // ── Mock Data ─────────────────────────────────────────────────
 const WEEKLY_DATA: DiagnosisReport[] = [
   { id: 1,  diagnosis: "Plasmodiasis",   totalFemale: 32, totalMale: 57 },
@@ -40,9 +42,47 @@ const MONTHLY_DATA: DiagnosisReport[] = [
   { id: 12, diagnosis: "Plasmodiasis",   totalFemale: 88,  totalMale: 102 },
 ];
 
+const YEARLY_DATA: DiagnosisReport[] = [
+  { id: 1,  diagnosis: "Malaria",        totalFemale: 520, totalMale: 610 },
+  { id: 2,  diagnosis: "Typhoid fever",  totalFemale: 380, totalMale: 420 },
+  { id: 3,  diagnosis: "Hypertension",   totalFemale: 290, totalMale: 340 },
+  { id: 4,  diagnosis: "Diabetes",       totalFemale: 210, totalMale: 250 },
+  { id: 5,  diagnosis: "Plasmodiasis",   totalFemale: 445, totalMale: 490 },
+  { id: 6,  diagnosis: "Pneumonia",      totalFemale: 180, totalMale: 220 },
+  { id: 7,  diagnosis: "Anaemia",        totalFemale: 310, totalMale: 160 },
+  { id: 8,  diagnosis: "UTI",            totalFemale: 420, totalMale: 95  },
+  { id: 9,  diagnosis: "Malaria",        totalFemale: 490, totalMale: 540 },
+  { id: 10, diagnosis: "Typhoid fever",  totalFemale: 320, totalMale: 380 },
+  { id: 11, diagnosis: "Hypertension",   totalFemale: 260, totalMale: 310 },
+  { id: 12, diagnosis: "Plasmodiasis",   totalFemale: 400, totalMale: 455 },
+];
+
+// ── Dynamic stats per period ──────────────────────────────────
+const PERIOD_STATS: Record<Period, {
+  totalStaffs:    { value: string; subtitle: string };
+  patientsSeen:   { value: string; subtitle: string };
+  diagnosisCount: { value: string; subtitle: string };
+}> = {
+  Weekly: {
+    totalStaffs:    { value: "450",  subtitle: "Active staffs in the system"    },
+    patientsSeen:   { value: "50",   subtitle: "Patients diagnosed this week"   },
+    diagnosisCount: { value: "34",   subtitle: "Different type of diagnosis"    },
+  },
+  Monthly: {
+    totalStaffs:    { value: "450",  subtitle: "Active staffs in the system"    },
+    patientsSeen:   { value: "280",  subtitle: "Patients diagnosed this month"  },
+    diagnosisCount: { value: "89",   subtitle: "Different type of diagnosis"    },
+  },
+  Yearly: {
+    totalStaffs:    { value: "450",  subtitle: "Active staffs in the system"    },
+    patientsSeen:   { value: "3,240",subtitle: "Patients diagnosed this year"   },
+    diagnosisCount: { value: "156",  subtitle: "Different type of diagnosis"    },
+  },
+};
+
 const ITEMS_PER_PAGE = 11;
 
-// ── Stat Card ─────────────────────────────────────────────────
+// ── Icons ─────────────────────────────────────────────────────
 function StaffIcon() {
   return (
     <div className="w-11 h-11 rounded-xl bg-primary-50 flex items-center justify-center shrink-0">
@@ -69,16 +109,11 @@ function ReportIcon() {
   );
 }
 
+// ── Stat Card ─────────────────────────────────────────────────
 function StatCard({
-  title,
-  value,
-  subtitle,
-  icon,
+  title, value, subtitle, icon,
 }: {
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: React.ReactNode;
+  title: string; value: string; subtitle: string; icon: React.ReactNode;
 }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-100 p-6 flex flex-col gap-3">
@@ -96,39 +131,40 @@ function StatCard({
 
 // ── Main Page ─────────────────────────────────────────────────
 export default function ReportsPage() {
-  const [period, setPeriod]           = useState<"Weekly" | "Monthly">("Weekly");
+  const [period, setPeriod]           = useState<Period>("Weekly");
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Switch data based on period
-  const data = period === "Weekly" ? WEEKLY_DATA : MONTHLY_DATA;
+  const data = period === "Weekly"
+    ? WEEKLY_DATA
+    : period === "Monthly"
+    ? MONTHLY_DATA
+    : YEARLY_DATA;
 
-  // Pagination
   const totalPages = Math.max(1, Math.ceil(data.length / ITEMS_PER_PAGE));
   const paginated  = data.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
 
-  // Summary stats — calculated from ALL data (not just current page)
   const summary = useMemo(() => {
-    const totalDiagnoses    = new Set(data.map((d) => d.diagnosis)).size;
-    const totalPatients     = data.reduce((sum, d) => sum + d.totalFemale + d.totalMale, 0);
+    const totalDiagnoses = new Set(data.map((d) => d.diagnosis)).size;
+    const totalPatients  = data.reduce((sum, d) => sum + d.totalFemale + d.totalMale, 0);
     return { totalDiagnoses, totalPatients };
   }, [data]);
 
-  // Period label for summary bar
-  const periodLabel = period === "Weekly" ? "This week" : "This month";
+  const periodLabel = period === "Weekly"
+    ? "This week"
+    : period === "Monthly"
+    ? "This month"
+    : "This year";
 
-  // Handle period change — reset to page 1
-  const handlePeriodChange = (val: "Weekly" | "Monthly") => {
+  const handlePeriodChange = (val: Period) => {
     setPeriod(val);
     setCurrentPage(1);
   };
 
-  // Print handler
   const handlePrint = () => window.print();
 
-  // PDF placeholder
   const handleDownloadPdf = () => {
     alert("PDF download will be available once the backend is connected.");
   };
@@ -136,65 +172,77 @@ export default function ReportsPage() {
   return (
     <div className="flex flex-col gap-6">
 
-      {/* ── Stat cards ──────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* ── Print header (hidden on screen, shows when printing) ── */}
+      <div className="hidden print:block mb-6">
+        <h1 className="text-2xl font-bold text-slate-800">
+          SAHCOMed — Diagnosis Summary Report
+        </h1>
+        <p className="text-sm text-slate-500 mt-1">
+          Period: {periodLabel} | Generated: {new Date().toLocaleDateString()}
+        </p>
+        <hr className="my-4 border-slate-200" />
+      </div>
+
+      {/* ── Stat cards (hidden when printing) ─────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 print:hidden">
         <StatCard
           title="Total Staffs"
-          value="450"
-          subtitle="Active staffs in the system"
+          value={PERIOD_STATS[period].totalStaffs.value}
+          subtitle={PERIOD_STATS[period].totalStaffs.subtitle}
           icon={<StaffIcon />}
         />
         <StatCard
           title="Patients seen"
-          value="50"
-          subtitle="Patients diagnosed this week"
+          value={PERIOD_STATS[period].patientsSeen.value}
+          subtitle={PERIOD_STATS[period].patientsSeen.subtitle}
           icon={<StaffIcon />}
         />
         <StatCard
           title="Diagnosis recorded"
-          value="450"
-          subtitle="Different type of diagnosis"
+          value={PERIOD_STATS[period].diagnosisCount.value}
+          subtitle={PERIOD_STATS[period].diagnosisCount.subtitle}
           icon={<ReportIcon />}
         />
       </div>
 
-      {/* ── Report table ─────────────────────────────────────── */}
+      {/* ── Report table ──────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
 
-        {/* Table header bar */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        {/* Table header bar — hidden when printing */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 print:hidden">
           <h2 className="text-base font-bold text-slate-800">
             Diagnosis summary report
           </h2>
           <div className="flex items-center gap-3">
-            {/* Period selector */}
             <select
               value={period}
-              onChange={(e) => handlePeriodChange(e.target.value as "Weekly" | "Monthly")}
+              onChange={(e) => handlePeriodChange(e.target.value as Period)}
               className="h-9 px-3 rounded-lg border border-slate-200 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
             >
               <option value="Weekly">Weekly</option>
               <option value="Monthly">Monthly</option>
+              <option value="Yearly">Yearly</option>
             </select>
-
-            {/* Print button */}
             <button
               onClick={handlePrint}
               className="flex items-center gap-2 h-9 px-4 rounded-lg border border-primary-500 text-primary-500 text-sm font-medium hover:bg-primary-50 transition-colors"
             >
-              <Printer size={15} />
-              Print
+              <Printer size={15} /> Print
             </button>
-
-            {/* Download PDF button */}
             <button
               onClick={handleDownloadPdf}
               className="flex items-center gap-2 h-9 px-4 rounded-lg bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 transition-colors"
             >
-              <Download size={15} />
-              Download pdf
+              <Download size={15} /> Download pdf
             </button>
           </div>
+        </div>
+
+        {/* Print-only table title */}
+        <div className="hidden print:block px-6 py-4 border-b border-slate-200">
+          <h2 className="text-base font-bold text-slate-800">
+            Diagnosis Summary Report — {periodLabel}
+          </h2>
         </div>
 
         {/* Table */}
@@ -227,16 +275,14 @@ export default function ReportsPage() {
                 <td className="px-6 py-4 text-sm text-slate-700">{row.diagnosis}</td>
                 <td className="px-6 py-4 text-sm text-slate-500">{row.totalFemale}</td>
                 <td className="px-6 py-4 text-sm text-slate-500">{row.totalMale}</td>
-                <td className="px-6 py-4 text-sm text-slate-500">
-                  {row.totalFemale + row.totalMale}
-                </td>
+                <td className="px-6 py-4 text-sm text-slate-500">{row.totalFemale + row.totalMale}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        {/* Pagination */}
-        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100">
+        {/* Pagination — hidden when printing */}
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 print:hidden">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage === 1}
@@ -268,36 +314,27 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* ── Summary bar ──────────────────────────────────────── */}
-      <div className="rounded-2xl border border-primary-200 bg-primary-50/30 px-8 py-5">
+      {/* ── Summary bar (hidden when printing) ────────────────── */}
+      <div className="rounded-2xl border border-primary-200 bg-primary-50/30 px-8 py-5 print:hidden">
         <div className="flex items-center justify-between flex-wrap gap-4">
-          {/* Report period */}
-          <div className="flex items-center gap-2">
+          <div>
             <span className="text-sm text-slate-600">
               <span className="font-semibold text-slate-800">Report period:</span>{" "}
               {periodLabel}
             </span>
           </div>
-
-          {/* Divider */}
           <div className="h-6 w-px bg-primary-200 hidden md:block" />
-
-          {/* Total diagnoses */}
-          <div className="flex items-center gap-2">
+          <div>
             <span className="text-sm text-slate-600">
               <span className="font-semibold text-slate-800">Total diagnoses:</span>{" "}
               {summary.totalDiagnoses} different types
             </span>
           </div>
-
-          {/* Divider */}
           <div className="h-6 w-px bg-primary-200 hidden md:block" />
-
-          {/* Total patients */}
-          <div className="flex items-center gap-2">
+          <div>
             <span className="text-sm text-slate-600">
               <span className="font-semibold text-slate-800">
-                Total patients treated {period === "Weekly" ? "this week" : "this month"}:
+                Total patients treated {periodLabel.toLowerCase()}:
               </span>{" "}
               {summary.totalPatients} patients
             </span>

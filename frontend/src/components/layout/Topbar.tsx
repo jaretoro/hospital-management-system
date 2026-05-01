@@ -1,4 +1,5 @@
 import { Bell, ChevronDown, Search } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
 
 interface TopbarProps {
   sidebarCollapsed: boolean;
@@ -13,12 +14,20 @@ export function Topbar({
   userName = "Nurse Glory",
   userRole = "Clinic manager",
 }: TopbarProps) {
+  const navigate  = useNavigate();
+  const location  = useLocation();
+  const isDoctor  = location.pathname.startsWith("/doctor");
+
   const initials = userName
     .split(" ")
     .map((n) => n[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  const handleBellClick = () => {
+    navigate(isDoctor ? "/doctor/notifications" : "/admin/notifications");
+  };
 
   return (
     <header
@@ -49,8 +58,11 @@ export function Topbar({
 
       {/* Right side */}
       <div className="flex items-center gap-3 ml-auto shrink-0">
-        {/* Bell */}
-        <button className="relative w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center hover:bg-slate-50 text-slate-600 transition-colors">
+        {/* Bell — navigates to notifications */}
+        <button
+          onClick={handleBellClick}
+          className="relative w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center hover:bg-slate-50 text-slate-600 transition-colors"
+        >
           <Bell size={18} />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 border-2 border-white" />
         </button>

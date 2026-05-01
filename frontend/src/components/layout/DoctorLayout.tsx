@@ -5,12 +5,13 @@ import { Topbar } from "./Topbar";
 
 const PAGE_TITLES: Record<string, string> = {
   "/doctor/dashboard":    "Dashboard",
-  "/doctor/staffs":       "Staff management",
+  "/doctor/staffs":       "Patient management",
   "/doctor/medications":  "Medications",
   "/doctor/reports":      "Report analytics",
   "/doctor/consultation": "Consultation",
   "/doctor/profile":      "Profile",
   "/doctor/settings":     "Settings",
+  "/doctor/notifications": "Notifications",
 };
 
 export function DoctorLayout() {
