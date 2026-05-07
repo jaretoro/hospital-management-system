@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Search, Plus, Trash2, MoreVertical,
   Pencil, X, SlidersHorizontal, ChevronLeft,
@@ -6,28 +6,33 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation } from "react-router-dom";
+import { api } from "@/lib/api";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { ErrorState } from "@/components/ui/ErrorState";
 
 // ── Types ─────────────────────────────────────────────────────
 interface Patient {
-  id: number;
-  fullName: string;
+  _id:         string;
+  fullName:    string;
   staffNumber: string;
-  department: string;
-  age: string;
-  gender: string;
-  email: string;
-  phone: string;
-  address: string;
-  bloodGroup: string;
-  genotype: string;
-  height: string;
-  weight: string;
-  status: "Active" | "In-active";
+  department:  string;
+  age:         number;
+  gender:      string;
+  phoneNumber: string;
+  email:       string;
+  address:     string;
+  bloodGroup:  string;
+  genotype:    string;
+  height:      number;
+  weight:      number;
+  status:      "active" | "inactive";
+  createdAt:   string;
+  updatedAt:   string;
 }
 
 interface MedicalRecord {
   id: number;
-  patientId: number;
+  patientId: string;
   date: string;
   diagnosis: string;
   dateOfVisitation: string;
@@ -45,44 +50,25 @@ interface Vitals {
 type SortField = "department" | "staffNumber" | null;
 type View = "list" | "detail";
 
-// ── Mock Data ─────────────────────────────────────────────────
-const INITIAL_PATIENTS: Patient[] = [
-  { id: 1, fullName: "Glory Nwosu",     staffNumber: "SAH-0001", department: "Business Development", age: "42yrs", gender: "Female", email: "glorynwosu@sahcoplc",     phone: "08156257812", address: "Ikeja city",    bloodGroup: "O+",  genotype: "AS", height: "171cm", weight: "65.6", status: "Active"    },
-  { id: 2, fullName: "Elizabeth Asojo", staffNumber: "SAH-3567", department: "Internal Control",     age: "32yrs", gender: "Female", email: "elizabeth@sahcoplc",      phone: "08123456789", address: "Lagos",         bloodGroup: "A+",  genotype: "AA", height: "165cm", weight: "60.0", status: "In-active" },
-  { id: 3, fullName: "John Okafor",     staffNumber: "SAH-3568", department: "Clinic",               age: "45yrs", gender: "Male",   email: "johnokafor@sahcoplc",     phone: "08134567890", address: "Abuja",         bloodGroup: "B+",  genotype: "AA", height: "175cm", weight: "78.0", status: "Active"    },
-  { id: 4, fullName: "Amaka Obi",       staffNumber: "SAH-3569", department: "Finance",              age: "29yrs", gender: "Female", email: "amakaobi@sahcoplc",       phone: "08145678901", address: "Port Harcourt", bloodGroup: "O-",  genotype: "AS", height: "160cm", weight: "55.0", status: "In-active" },
-  { id: 5, fullName: "Tunde Adeyemi",   staffNumber: "SAH-3570", department: "MTCE",                 age: "38yrs", gender: "Male",   email: "tundeadeyemi@sahcoplc",   phone: "08156789012", address: "Ibadan",        bloodGroup: "AB+", genotype: "AA", height: "180cm", weight: "85.0", status: "Active"    },
-  { id: 6, fullName: "Ngozi Eze",       staffNumber: "SAH-3571", department: "Business Development", age: "35yrs", gender: "Female", email: "ngozieze@sahcoplc",       phone: "08167890123", address: "Enugu",         bloodGroup: "A-",  genotype: "AS", height: "163cm", weight: "58.0", status: "Active"    },
-  { id: 7, fullName: "Emeka Nwachukwu", staffNumber: "SAH-3572", department: "Internal Control",     age: "41yrs", gender: "Male",   email: "emekanwachukwu@sahcoplc", phone: "08178901234", address: "Onitsha",       bloodGroup: "O+",  genotype: "AA", height: "172cm", weight: "72.0", status: "Active"    },
-];
-
+// ── Mock Medical Records (until consultation API is connected) ─
 const MOCK_MEDICAL_RECORDS: MedicalRecord[] = [
-  { id: 1,  patientId: 1, date: "05-03-2027", diagnosis: "Allergic Rhinitis, Malaria",  dateOfVisitation: "05-03-2027", status: "Waiting"         },
-  { id: 2,  patientId: 1, date: "05-03-2027", diagnosis: "Typhoid Fever",               dateOfVisitation: "05-03-2027", status: "In Consultation" },
-  { id: 3,  patientId: 1, date: "05-03-2027", diagnosis: "Malaria",                     dateOfVisitation: "05-03-2027", status: "Completed"       },
-  { id: 4,  patientId: 1, date: "05-03-2027", diagnosis: "Hypertension",                dateOfVisitation: "05-03-2027", status: "Completed"       },
-  { id: 5,  patientId: 1, date: "05-03-2027", diagnosis: "Diabetes checkup",            dateOfVisitation: "05-03-2027", status: "Completed"       },
-  { id: 6,  patientId: 1, date: "05-03-2027", diagnosis: "Allergic Rhinitis",           dateOfVisitation: "05-03-2027", status: "Completed"       },
-  { id: 7,  patientId: 1, date: "05-03-2027", diagnosis: "Malaria, Typhoid",            dateOfVisitation: "05-03-2027", status: "Completed"       },
-  { id: 8,  patientId: 1, date: "05-03-2027", diagnosis: "UTI",                         dateOfVisitation: "05-03-2027", status: "Completed"       },
-  { id: 9,  patientId: 1, date: "05-03-2027", diagnosis: "Anaemia",                     dateOfVisitation: "05-03-2027", status: "Completed"       },
-  { id: 10, patientId: 2, date: "10-03-2027", diagnosis: "Malaria",                     dateOfVisitation: "10-03-2027", status: "Completed"       },
-  { id: 11, patientId: 2, date: "10-03-2027", diagnosis: "Typhoid Fever",               dateOfVisitation: "10-03-2027", status: "Waiting"         },
-  { id: 12, patientId: 3, date: "12-03-2027", diagnosis: "Hypertension",                dateOfVisitation: "12-03-2027", status: "Completed"       },
-  { id: 13, patientId: 4, date: "14-03-2027", diagnosis: "Diabetes checkup",            dateOfVisitation: "14-03-2027", status: "In Consultation" },
-  { id: 14, patientId: 5, date: "15-03-2027", diagnosis: "Malaria",                     dateOfVisitation: "15-03-2027", status: "Completed"       },
+  { id: 1,  patientId: "1", date: "05-03-2027", diagnosis: "Allergic Rhinitis, Malaria",  dateOfVisitation: "05-03-2027", status: "Waiting"         },
+  { id: 2,  patientId: "1", date: "05-03-2027", diagnosis: "Typhoid Fever",               dateOfVisitation: "05-03-2027", status: "In Consultation" },
+  { id: 3,  patientId: "1", date: "05-03-2027", diagnosis: "Malaria",                     dateOfVisitation: "05-03-2027", status: "Completed"       },
+  { id: 4,  patientId: "1", date: "05-03-2027", diagnosis: "Hypertension",                dateOfVisitation: "05-03-2027", status: "Completed"       },
+  { id: 5,  patientId: "1", date: "05-03-2027", diagnosis: "Diabetes checkup",            dateOfVisitation: "05-03-2027", status: "Completed"       },
 ];
 
-const DEPARTMENTS = ["Business Development", "Internal Control", "Clinic", "MTCE", "Finance"];
+const DEPARTMENTS = ["Business Development", "Internal Control", "Clinic", "MTCE", "Finance", "IT"];
 const ITEMS_PER_PAGE   = 7;
 const RECORDS_PER_PAGE = 9;
 
 // ── Helpers ───────────────────────────────────────────────────
-function StatusBadge({ status }: { status: "Active" | "In-active" }) {
+function StatusBadge({ status }: { status: "active" | "inactive" }) {
   return (
     <span className={cn(
-      "px-3 py-1 rounded-full text-xs font-medium",
-      status === "Active" ? "bg-green-50 text-green-600" : "bg-red-50 text-red-400"
+      "px-3 py-1 rounded-full text-xs font-medium capitalize",
+      status === "active" ? "bg-green-50 text-green-600" : "bg-red-50 text-red-400"
     )}>
       {status}
     </span>
@@ -134,23 +120,30 @@ function DashedLines({ count }: { count: number }) {
   );
 }
 
-// ── Patient Form (Admin only) ─────────────────────────────────
+// ── Patient Form ──────────────────────────────────────────────
 function PatientForm({
-  title, initial, onClose, onSubmit, submitLabel,
+  title, initial, onClose, onSubmit, submitLabel, loading,
 }: {
   title: string;
   initial: Partial<Patient>;
   onClose: () => void;
-  onSubmit: (data: Omit<Patient, "id" | "status">) => void;
+  onSubmit: (data: any) => void;
   submitLabel: string;
+  loading?: boolean;
 }) {
   const [form, setForm] = useState({
-    fullName: initial.fullName ?? "", age: initial.age ?? "",
-    gender: initial.gender ?? "", staffNumber: initial.staffNumber ?? "",
-    department: initial.department ?? "", phone: initial.phone ?? "",
-    email: initial.email ?? "", address: initial.address ?? "",
-    bloodGroup: initial.bloodGroup ?? "", genotype: initial.genotype ?? "",
-    height: initial.height ?? "", weight: initial.weight ?? "",
+    fullName:    initial.fullName    ?? "",
+    age:         initial.age?.toString() ?? "",
+    gender:      initial.gender      ?? "",
+    staffNumber: initial.staffNumber ?? "",
+    department:  initial.department  ?? "",
+    phoneNumber: initial.phoneNumber ?? "",
+    email:       initial.email       ?? "",
+    address:     initial.address     ?? "",
+    bloodGroup:  initial.bloodGroup  ?? "",
+    genotype:    initial.genotype    ?? "",
+    height:      initial.height?.toString() ?? "",
+    weight:      initial.weight?.toString() ?? "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -166,7 +159,7 @@ function PatientForm({
     if (!form.gender.trim())      e.gender      = "Gender is required";
     if (!form.staffNumber.trim()) e.staffNumber = "Patient number is required";
     if (!form.department.trim())  e.department  = "Department is required";
-    if (!form.phone.trim())       e.phone       = "Phone number is required";
+    if (!form.phoneNumber.trim()) e.phoneNumber = "Phone number is required";
     if (!form.email.trim())       e.email       = "Email is required";
     return e;
   };
@@ -174,8 +167,12 @@ function PatientForm({
   const handleSubmit = () => {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
-    onSubmit(form);
-    onClose();
+    onSubmit({
+      ...form,
+      age:    Number(form.age),
+      height: Number(form.height),
+      weight: Number(form.weight),
+    });
   };
 
   return (
@@ -192,14 +189,14 @@ function PatientForm({
         </FormField>
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Age" error={errors.age}>
-            <input className={inputClass(errors.age)} placeholder="42yrs" value={form.age} onChange={(e) => set("age", e.target.value)} />
+            <input className={inputClass(errors.age)} placeholder="42" type="number" value={form.age} onChange={(e) => set("age", e.target.value)} />
           </FormField>
           <FormField label="Gender" error={errors.gender}>
             <select className={inputClass(errors.gender)} value={form.gender} onChange={(e) => set("gender", e.target.value)}>
               <option value="">Select gender</option>
-              <option>Male</option>
-              <option>Female</option>
-              <option>Other</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
             </select>
           </FormField>
         </div>
@@ -212,8 +209,8 @@ function PatientForm({
             {DEPARTMENTS.map((d) => <option key={d}>{d}</option>)}
           </select>
         </FormField>
-        <FormField label="Phone-number" error={errors.phone}>
-          <input className={inputClass(errors.phone)} placeholder="+234 80 8000 0000" value={form.phone} onChange={(e) => set("phone", e.target.value)} />
+        <FormField label="Phone number" error={errors.phoneNumber}>
+          <input className={inputClass(errors.phoneNumber)} placeholder="+234 80 8000 0000" value={form.phoneNumber} onChange={(e) => set("phoneNumber", e.target.value)} />
         </FormField>
         <FormField label="Email address" error={errors.email}>
           <input className={inputClass(errors.email)} placeholder="name@gmail.com" value={form.email} onChange={(e) => set("email", e.target.value)} />
@@ -230,29 +227,34 @@ function PatientForm({
           </FormField>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Height" error={undefined}>
-            <input className={inputClass()} placeholder="171cm" value={form.height} onChange={(e) => set("height", e.target.value)} />
+          <FormField label="Height (cm)" error={undefined}>
+            <input className={inputClass()} placeholder="171" type="number" value={form.height} onChange={(e) => set("height", e.target.value)} />
           </FormField>
-          <FormField label="Weight" error={undefined}>
-            <input className={inputClass()} placeholder="65.6" value={form.weight} onChange={(e) => set("weight", e.target.value)} />
+          <FormField label="Weight (kg)" error={undefined}>
+            <input className={inputClass()} placeholder="65.6" type="number" value={form.weight} onChange={(e) => set("weight", e.target.value)} />
           </FormField>
         </div>
-        <button onClick={handleSubmit} className="w-full h-12 rounded-xl bg-primary-500 text-white font-semibold text-sm hover:bg-primary-600 transition-colors mt-2">
-          {submitLabel}
+        <button
+          onClick={handleSubmit}
+          disabled={loading}
+          className="w-full h-12 rounded-xl bg-primary-500 text-white font-semibold text-sm hover:bg-primary-600 transition-colors mt-2 disabled:opacity-70 flex items-center justify-center gap-2"
+        >
+          {loading ? <><LoadingSpinner size="sm" /> Saving...</> : submitLabel}
         </button>
       </div>
     </Modal>
   );
 }
 
-// ── Record Vitals Modal (Admin only) ──────────────────────────
+// ── Record Vitals Modal ───────────────────────────────────────
 function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: () => void }) {
   const [form, setForm] = useState<Vitals>({
-    bloodPressure: "120/78", heartRate: "78",
-    temperature: "35.5", height: patient.height, weight: patient.weight,
+    bloodPressure: "", heartRate: "",
+    temperature: "", height: patient.height.toString(), weight: patient.weight.toString(),
   });
   const [errors, setErrors]   = useState<Record<string, string>>({});
   const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const set = (field: string, value: string) => {
     setForm((p) => ({ ...p, [field]: value }));
@@ -269,9 +271,13 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
     return e;
   };
 
-  const handleSendToDoctor = () => {
+  const handleSendToDoctor = async () => {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
+    setLoading(true);
+    // Will connect to consultation vitals endpoint later
+    await new Promise((res) => setTimeout(res, 1000));
+    setLoading(false);
     setSuccess(true);
     setTimeout(() => onClose(), 2500);
   };
@@ -286,7 +292,7 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
             </svg>
           </div>
           <p className="text-slate-700 font-medium text-base max-w-xs">
-            You have successfully sent the patient's vitals!
+            Patient's vitals sent to doctor successfully!
           </p>
         </div>
       </Modal>
@@ -312,15 +318,19 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
           <input className={inputClass(errors.temperature)} value={form.temperature} onChange={(e) => set("temperature", e.target.value)} />
         </FormField>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Height" error={errors.height}>
+          <FormField label="Height (cm)" error={errors.height}>
             <input className={inputClass(errors.height)} value={form.height} onChange={(e) => set("height", e.target.value)} />
           </FormField>
-          <FormField label="Weight" error={errors.weight}>
+          <FormField label="Weight (kg)" error={errors.weight}>
             <input className={inputClass(errors.weight)} value={form.weight} onChange={(e) => set("weight", e.target.value)} />
           </FormField>
         </div>
-        <button onClick={handleSendToDoctor} className="w-full h-12 rounded-xl bg-primary-500 text-white font-semibold text-sm hover:bg-primary-600 transition-colors mt-2">
-          Send to doctor
+        <button
+          onClick={handleSendToDoctor}
+          disabled={loading}
+          className="w-full h-12 rounded-xl bg-primary-500 text-white font-semibold text-sm hover:bg-primary-600 transition-colors mt-2 disabled:opacity-70 flex items-center justify-center gap-2"
+        >
+          {loading ? <><LoadingSpinner size="sm" /> Sending...</> : "Send to doctor"}
         </button>
         <button onClick={onClose} className="w-full h-12 rounded-xl bg-primary-50 text-primary-500 font-semibold text-sm border border-primary-100 hover:bg-primary-100 transition-colors">
           Save vitals
@@ -330,7 +340,7 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
   );
 }
 
-// ── Action Dropdown (Admin only) ──────────────────────────────
+// ── Action Dropdown ───────────────────────────────────────────
 function ActionDropdown({
   onView, onRecordVitals, onDelete, onClose,
 }: {
@@ -388,11 +398,11 @@ function MedicalRecordSlideOver({
             <h3 className="text-sm font-bold text-slate-700 mb-3">❤️ Vitals</h3>
             <div className="grid grid-cols-5 gap-4">
               {[
-                { label: "Blood pressure", value: "121/78mmhg" },
-                { label: "Heart rate",     value: "56bpm"       },
-                { label: "Temperature",    value: "32.5 C"      },
-                { label: "Height",         value: patient.height },
-                { label: "Weight",         value: `${patient.weight}kg` },
+                { label: "Blood pressure", value: "121/78mmhg"          },
+                { label: "Heart rate",     value: "56bpm"                },
+                { label: "Temperature",    value: "32.5 C"               },
+                { label: "Height",         value: `${patient.height}cm`  },
+                { label: "Weight",         value: `${patient.weight}kg`  },
               ].map((v) => (
                 <div key={v.label}>
                   <p className="text-xs text-slate-400">{v.label}</p>
@@ -441,40 +451,44 @@ function PatientDetailView({
   const [showEditModal, setShowEditModal]   = useState(false);
   const [showVitals, setShowVitals]         = useState(false);
   const [recordPage, setRecordPage]         = useState(1);
+  const [saving, setSaving]                 = useState(false);
 
-  const patientRecords   = MOCK_MEDICAL_RECORDS.filter((r) => r.patientId === patient.id);
+  const patientRecords   = MOCK_MEDICAL_RECORDS.filter((r) => r.patientId === "1");
   const totalRecordPages = Math.max(1, Math.ceil(patientRecords.length / RECORDS_PER_PAGE));
   const paginatedRecords = patientRecords.slice(
     (recordPage - 1) * RECORDS_PER_PAGE,
     recordPage * RECORDS_PER_PAGE
   );
 
-  // Doctor sees more clinical fields, admin sees management fields
-  const infoFields = isDoctor ? [
-    { label: "Full name",     value: patient.fullName    },
-    { label: "Email address", value: patient.email       },
-    { label: "Staff Number",  value: patient.staffNumber },
-    { label: "Department",    value: patient.department  },
-    { label: "Gender",        value: patient.gender      },
-    { label: "Age",           value: patient.age         },
-    { label: "Phone-number",  value: patient.phone       },
-    { label: "Blood group",   value: patient.bloodGroup  },
-    { label: "Genotype",      value: patient.genotype    },
-    { label: "Weight",        value: patient.weight      },
-    { label: "Address",       value: patient.address     },
-  ] : [
-    { label: "Full name",     value: patient.fullName    },
-    { label: "Email address", value: patient.email       },
-    { label: "Staff Number",  value: patient.staffNumber },
-    { label: "Department",    value: patient.department  },
-    { label: "Gender",        value: patient.gender      },
-    { label: "Age",           value: patient.age         },
-    { label: "Phone-number",  value: patient.phone       },
-    { label: "Blood group",   value: patient.bloodGroup  },
-    { label: "Genotype",      value: patient.genotype    },
-    { label: "Weight",        value: patient.weight      },
-    { label: "Address",       value: patient.address     },
+  const infoFields = [
+    { label: "Full name",     value: patient.fullName                },
+    { label: "Email address", value: patient.email                   },
+    { label: "Staff Number",  value: patient.staffNumber             },
+    { label: "Department",    value: patient.department              },
+    { label: "Gender",        value: patient.gender                  },
+    { label: "Age",           value: `${patient.age}yrs`             },
+    { label: "Phone-number",  value: patient.phoneNumber             },
+    { label: "Blood group",   value: patient.bloodGroup              },
+    { label: "Genotype",      value: patient.genotype                },
+    { label: "Weight",        value: `${patient.weight}kg`           },
+    { label: "Address",       value: patient.address                 },
   ];
+
+  const handleUpdate = async (data: any) => {
+    setSaving(true);
+    try {
+      const response = await api.patch<{
+        status: boolean;
+        data: { patient: Patient };
+      }>(`/v1/patients/${patient._id}`, data);
+      onUpdatePatient(response.data.patient);
+      setShowEditModal(false);
+    } catch (err: any) {
+      alert(err.message ?? "Failed to update patient");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -482,13 +496,11 @@ function PatientDetailView({
         <ArrowLeft size={16} /> Back to patient list
       </button>
 
-      {/* Profile card */}
       <div className="bg-white rounded-2xl border border-slate-100 p-6">
         <div className="flex items-center gap-4 mb-6">
           <div className="w-16 h-16 rounded-full bg-primary-100 text-primary-500 font-bold flex items-center justify-center text-xl shrink-0">
             {patient.fullName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
           </div>
-          {/* Admin can edit, doctor cannot */}
           {!isDoctor && (
             <button
               onClick={() => setShowEditModal(true)}
@@ -508,7 +520,6 @@ function PatientDetailView({
         </div>
       </div>
 
-      {/* Medical Records */}
       <div className="bg-white rounded-2xl border border-slate-100 p-6">
         <h2 className="text-base font-bold text-slate-800 mb-5">Medical Records</h2>
         {paginatedRecords.length === 0 ? (
@@ -535,7 +546,6 @@ function PatientDetailView({
           </div>
         )}
 
-        {/* Bottom bar — admin shows Record vitals, doctor shows nothing */}
         <div className="flex items-center justify-between mt-6">
           {!isDoctor && (
             <button
@@ -563,15 +573,15 @@ function PatientDetailView({
         </div>
       </div>
 
-      {/* Modals — admin only */}
       {!isDoctor && showVitals    && <RecordVitalsModal patient={patient} onClose={() => setShowVitals(false)} />}
       {!isDoctor && showEditModal && (
         <PatientForm
           title="Edit patient"
           initial={patient}
           onClose={() => setShowEditModal(false)}
-          onSubmit={(data) => { onUpdatePatient({ ...patient, ...data }); setShowEditModal(false); }}
+          onSubmit={handleUpdate}
           submitLabel="Update patient"
+          loading={saving}
         />
       )}
       {selectedRecord && (
@@ -590,26 +600,55 @@ export default function StaffsPage() {
   const location = useLocation();
   const isDoctor = location.pathname.startsWith("/doctor");
 
-  const [patients, setPatients]           = useState<Patient[]>(INITIAL_PATIENTS);
+  const [patients, setPatients]           = useState<Patient[]>([]);
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState<string | null>(null);
   const [search, setSearch]               = useState("");
   const [sortField, setSortField]         = useState<SortField>(null);
   const [sortDir, setSortDir]             = useState<"asc" | "desc">("asc");
-  const [openDropdown, setOpenDropdown]   = useState<number | null>(null);
+  const [openDropdown, setOpenDropdown]   = useState<string | null>(null);
   const [showAddModal, setShowAddModal]   = useState(false);
   const [vitalsPatient, setVitalsPatient] = useState<Patient | null>(null);
   const [currentPage, setCurrentPage]     = useState(1);
+  const [totalPages, setTotalPages]       = useState(1);
   const [view, setView]                   = useState<View>("list");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [selected, setSelected]           = useState<number[]>([]);
+  const [adding, setAdding]               = useState(false);
 
+  // ── Fetch patients ────────────────────────────────────────
+  const fetchPatients = async (page = 1) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get<{
+        status: boolean;
+        data: {
+          patients: Patient[];
+          total: number;
+          totalPages: number;
+          currentPage: number;
+        };
+      }>(`/v1/patients?page=${page}&limit=7`);
+      setPatients(response.data.patients);
+      setTotalPages(response.data.totalPages);
+    } catch (err: any) {
+      setError(err.message ?? "Failed to load patients");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchPatients(currentPage); }, [currentPage]);
+
+  // ── Sort ──────────────────────────────────────────────────
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir((d) => d === "asc" ? "desc" : "asc");
     else { setSortField(field); setSortDir("asc"); }
-    setCurrentPage(1);
   };
 
-  const handleClear = () => { setSortField(null); setSearch(""); setCurrentPage(1); };
+  const handleClear = () => { setSortField(null); setSearch(""); };
 
+  // ── Filtered + sorted ─────────────────────────────────────
   const processed = useMemo(() => {
     let result = patients.filter((p) =>
       p.fullName.toLowerCase().includes(search.toLowerCase()) ||
@@ -625,17 +664,44 @@ export default function StaffsPage() {
     return result;
   }, [patients, search, sortField, sortDir]);
 
-  const totalPages = Math.max(1, Math.ceil(processed.length / ITEMS_PER_PAGE));
-  const paginated  = processed.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  // ── Add patient ───────────────────────────────────────────
+  const handleAdd = async (data: any) => {
+    setAdding(true);
+    try {
+      const response = await api.post<{
+        status: boolean;
+        data: { patient: Patient };
+      }>("/v1/patients", data);
+      setPatients((prev) => [response.data.patient, ...prev]);
+      setShowAddModal(false);
+    } catch (err: any) {
+      alert(err.message ?? "Failed to add patient");
+    } finally {
+      setAdding(false);
+    }
+  };
 
-  const handleAdd    = (p: Omit<Patient, "id" | "status">) => setPatients((prev) => [{ ...p, id: Date.now(), status: "Active" }, ...prev]);
-  const handleUpdate = (updated: Patient) => { setPatients((prev) => prev.map((p) => p.id === updated.id ? updated : p)); setSelectedPatient(updated); };
-  const deleteSingle = (id: number) => { setPatients((prev) => prev.filter((p) => p.id !== id)); setOpenDropdown(null); };
-  const deleteSelected = () => { setPatients((prev) => prev.filter((p) => !selected.includes(p.id))); setSelected([]); };
+  // ── Update patient ────────────────────────────────────────
+  const handleUpdate = (updated: Patient) => {
+    setPatients((prev) => prev.map((p) => p._id === updated._id ? updated : p));
+    setSelectedPatient(updated);
+  };
 
-  const sortIndicator = (field: SortField) => sortField === field ? (sortDir === "asc" ? " ↑" : " ↓") : null;
+  // ── Delete patient ────────────────────────────────────────
+  const deleteSingle = async (id: string) => {
+    try {
+      await api.delete(`/v1/patients/${id}`);
+      setPatients((prev) => prev.filter((p) => p._id !== id));
+      setOpenDropdown(null);
+    } catch (err: any) {
+      alert(err.message ?? "Failed to delete patient");
+    }
+  };
 
-  // ── Detail view ───────────────────────────────────────────────
+  const sortIndicator = (field: SortField) =>
+    sortField === field ? (sortDir === "asc" ? " ↑" : " ↓") : null;
+
+  // ── Detail view ───────────────────────────────────────────
   if (view === "detail" && selectedPatient) {
     return (
       <PatientDetailView
@@ -647,7 +713,15 @@ export default function StaffsPage() {
     );
   }
 
-  // ── List view ─────────────────────────────────────────────────
+  // ── Loading / Error ───────────────────────────────────────
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <LoadingSpinner size="lg" />
+    </div>
+  );
+
+  if (error) return <ErrorState message={error} onRetry={() => fetchPatients(currentPage)} />;
+
   return (
     <div className="flex flex-col gap-5">
 
@@ -681,7 +755,7 @@ export default function StaffsPage() {
         </div>
       </div>
 
-      {/* Action buttons — admin only */}
+      {/* Action buttons — nurse/admin only */}
       {!isDoctor && (
         <div className="flex items-center gap-3">
           <button
@@ -689,17 +763,6 @@ export default function StaffsPage() {
             className="flex items-center gap-2 h-10 px-5 rounded-lg bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors"
           >
             <Plus size={16} /> Add patient
-          </button>
-          <button
-            onClick={deleteSelected}
-            disabled={selected.length === 0}
-            className={cn(
-              "flex items-center gap-2 h-10 px-5 rounded-lg border text-sm font-medium transition-colors",
-              selected.length > 0 ? "border-red-200 text-red-500 hover:bg-red-50" : "border-slate-200 text-slate-400 cursor-not-allowed"
-            )}
-          >
-            <Trash2 size={15} />
-            Delete {selected.length > 0 && `(${selected.length})`}
           </button>
         </div>
       )}
@@ -718,18 +781,17 @@ export default function StaffsPage() {
             </tr>
           </thead>
           <tbody>
-            {paginated.length === 0 ? (
+            {processed.length === 0 ? (
               <tr><td colSpan={6} className="text-center py-12 text-sm text-slate-400">No patients found.</td></tr>
             ) : (
-              paginated.map((patient) => (
-                <tr key={patient.id} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors relative">
+              processed.map((patient) => (
+                <tr key={patient._id} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors relative">
                   <td className="px-6 py-4 text-sm font-medium text-slate-700">{patient.fullName}</td>
                   <td className="px-6 py-4 text-sm text-slate-500">{patient.staffNumber}</td>
                   <td className="px-6 py-4 text-sm text-slate-500">{patient.department}</td>
-                  <td className="px-6 py-4 text-sm text-slate-500">{patient.age}</td>
+                  <td className="px-6 py-4 text-sm text-slate-500">{patient.age}yrs</td>
                   <td className="px-6 py-4"><StatusBadge status={patient.status} /></td>
                   <td className="px-6 py-4 relative">
-                    {/* Doctor sees plain View link, admin sees ⋮ dropdown */}
                     {isDoctor ? (
                       <button
                         onClick={() => { setSelectedPatient(patient); setView("detail"); }}
@@ -740,16 +802,16 @@ export default function StaffsPage() {
                     ) : (
                       <>
                         <button
-                          onClick={() => setOpenDropdown(openDropdown === patient.id ? null : patient.id)}
+                          onClick={() => setOpenDropdown(openDropdown === patient._id ? null : patient._id)}
                           className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
                         >
                           <MoreVertical size={16} />
                         </button>
-                        {openDropdown === patient.id && (
+                        {openDropdown === patient._id && (
                           <ActionDropdown
                             onView={() => { setSelectedPatient(patient); setView("detail"); setOpenDropdown(null); }}
                             onRecordVitals={() => { setVitalsPatient(patient); setOpenDropdown(null); }}
-                            onDelete={() => deleteSingle(patient.id)}
+                            onDelete={() => deleteSingle(patient._id)}
                             onClose={() => setOpenDropdown(null)}
                           />
                         )}
@@ -778,9 +840,20 @@ export default function StaffsPage() {
         </div>
       </div>
 
-      {/* Admin only modals */}
-      {!isDoctor && showAddModal  && <PatientForm title="Add new patient" initial={{}} onClose={() => setShowAddModal(false)} onSubmit={handleAdd} submitLabel="Register patient" />}
-      {!isDoctor && vitalsPatient && <RecordVitalsModal patient={vitalsPatient} onClose={() => setVitalsPatient(null)} />}
+      {/* Modals */}
+      {!isDoctor && showAddModal && (
+        <PatientForm
+          title="Add new patient"
+          initial={{}}
+          onClose={() => setShowAddModal(false)}
+          onSubmit={handleAdd}
+          submitLabel="Register patient"
+          loading={adding}
+        />
+      )}
+      {!isDoctor && vitalsPatient && (
+        <RecordVitalsModal patient={vitalsPatient} onClose={() => setVitalsPatient(null)} />
+      )}
     </div>
   );
 }

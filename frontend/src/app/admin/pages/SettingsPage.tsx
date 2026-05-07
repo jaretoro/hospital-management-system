@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-
+import { clearAuth } from "@/lib/auth";
 // ── Toggle Component ──────────────────────────────────────────
 function Toggle({
   enabled,
@@ -145,7 +145,7 @@ export default function SettingsPage() {
 
   // ── Log out ───────────────────────────────────────────────
   const handleLogout = () => {
-    // Backend will clear JWT token
+    clearAuth();
     navigate("/login");
   };
 

@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import medicalStaff from "@/assets/images/medical-staff.jpg";
+import { api } from "@/lib/api";
+import { saveAuth } from "@/lib/auth";
 
 // ── Types ─────────────────────────────────────────────────────
 type View = "role-select" | "sign-in" | "sign-up" | "forgot-password";
@@ -204,11 +206,58 @@ function SignInView({
   const handleSignIn = async () => {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
+  
     setLoading(true);
-    await new Promise((res) => setTimeout(res, 1000));
-    setLoading(false);
-    if (role === "admin")  navigate("/admin/dashboard");
-    if (role === "doctor") navigate("/doctor/dashboard");
+    try {
+      const response = await api.post<{
+        status: boolean;
+        message: string;
+        data: {
+          token: string;
+          user: {
+            _id: string;
+            fullName: string;
+            email: string;
+            role: "admin" | "doctor";
+            phoneNumber: string;
+            isActive: boolean;
+            createdAt: string;
+          };
+        };
+      }>("/v1/users/login", {
+        email:    form.email,
+        password: form.password,
+      });
+  
+      const userRole = response.data.user.role;
+  
+      // ── Check if role matches what was selected ──────────
+      if (userRole !== role) {
+        setErrors({
+          email: `This account is registered as a ${userRole}. Please select ${userRole} on the previous screen.`
+        });
+        setLoading(false);
+        return;
+      }
+  
+      // Save token + user
+      saveAuth(response.data.token, {
+        id:          response.data.user._id,
+        name:        response.data.user.fullName,
+        email:       response.data.user.email,
+        role:        userRole,
+        phoneNumber: response.data.user.phoneNumber,
+        isActive:    response.data.user.isActive,
+      });
+  
+      // Navigate based on role
+      navigate(`/${userRole}/dashboard`);
+  
+    } catch (error: any) {
+      setErrors({ email: error.message ?? "Invalid email or password" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -299,7 +348,8 @@ function SignUpView({
   const navigate = useNavigate();
   const [form, setForm] = useState({
     fullName: "", email: "", department: "",
-    role: role ?? "", address: "", password: "", confirm: "",
+    roleField: role ?? "", address: "",
+    password: "", confirm: "", phone: "",
   });
   const [errors, setErrors]   = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -314,8 +364,9 @@ function SignUpView({
     if (!form.fullName.trim())   e.fullName   = "Full name is required";
     if (!form.email.trim())      e.email      = "Email is required";
     else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = "Enter a valid email";
+    if (!form.phone.trim())      e.phone      = "Phone number is required";
     if (!form.department.trim()) e.department = "Department is required";
-    if (!form.role.trim())       e.role       = "Role is required";
+    if (!form.roleField.trim())  e.roleField  = "Role is required";
     if (!form.address.trim())    e.address    = "Address is required";
     if (!form.password.trim())   e.password   = "Password is required";
     else if (form.password.length < 8) e.password = "Password must be at least 8 characters";
@@ -328,12 +379,21 @@ function SignUpView({
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
     setLoading(true);
-    // Backend will handle real account creation
-    await new Promise((res) => setTimeout(res, 1000));
-    setLoading(false);
-    // After sign up → go to dashboard
-    if (role === "admin")  navigate("/admin/dashboard");
-    if (role === "doctor") navigate("/doctor/dashboard");
+    try {
+      await api.post("/v1/users/register", {
+        fullName:    form.fullName,
+        email:       form.email,
+        password:    form.password,
+        role:        role ?? "doctor",
+        phoneNumber: form.phone,
+      });
+      // After successful register → go to sign in
+      onGoToSignIn();
+    } catch (error: any) {
+      setErrors({ email: error.message ?? "Registration failed" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -364,6 +424,13 @@ function SignUpView({
           error={errors.email}
         />
         <TextInput
+          label="Phone number"
+          placeholder="e.g. 09058086310"
+          value={form.phone}
+          onChange={(v) => set("phone", v)}
+          error={errors.phone}
+        />
+        <TextInput
           label="Department"
           placeholder="Enter department"
           value={form.department}
@@ -373,9 +440,9 @@ function SignUpView({
         <TextInput
           label="Role"
           placeholder="Enter role"
-          value={form.role}
-          onChange={(v) => set("role", v)}
-          error={errors.role}
+          value={form.roleField}
+          onChange={(v) => set("roleField", v)}
+          error={errors.roleField}
         />
         <TextInput
           label="Address"
@@ -399,9 +466,12 @@ function SignUpView({
           error={errors.confirm}
         />
 
-        <OrangeButton label="Sign up" onClick={handleSignUp} loading={loading} />
+        <OrangeButton
+          label="Sign up"
+          onClick={handleSignUp}
+          loading={loading}
+        />
 
-        {/* Sign in link */}
         <p className="text-center text-sm text-slate-500">
           Already have an account?{" "}
           <button
@@ -415,6 +485,7 @@ function SignUpView({
     </div>
   );
 }
+
 
 // ── Forgot Password View ──────────────────────────────────────
 function ForgotPasswordView({ onBack }: { onBack: () => void }) {

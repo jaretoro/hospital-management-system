@@ -1,39 +1,27 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { X, Camera } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
+import { getUser, saveAuth, getToken } from "@/lib/auth";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { ErrorState } from "@/components/ui/ErrorState";
 
-// ── Types ─────────────────────────────────────────────────────
-interface ProfileData {
+interface UserProfile {
+  _id:         string;
   fullName:    string;
   email:       string;
-  staffNumber: string;
-  department:  string;
-  gender:      string;
-  phone:       string;
   role:        string;
-  address:     string;
-  avatarUrl:   string | null;
+  phoneNumber: string;
+  isActive:    boolean;
+  createdAt:   string;
+  updatedAt:   string;
 }
-
-// ── Mock Data ─────────────────────────────────────────────────
-const INITIAL_PROFILE: ProfileData = {
-  fullName:    "Glory Nwosu",
-  email:       "glorynwosu@sahcoplc",
-  staffNumber: "SAH-0001",
-  department:  "Clinic",
-  gender:      "Female",
-  phone:       "08156257812",
-  role:        "Clinic manager",
-  address:     "Ikeja city",
-  avatarUrl:   null,
-};
 
 const ACCOUNT_ACTIVITY = [
   { id: 1, title: "Last Login",      date: "March 13, 2026 at 9:30 AM", ipAddress: "From 192.168.11.1" },
   { id: 2, title: "Account Created", date: "January 25, 2026",          ipAddress: "From 192.168.11.1" },
 ];
 
-// ── Avatar ────────────────────────────────────────────────────
 function ProfileAvatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
   const initials = name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
   return avatarUrl ? (
@@ -45,7 +33,6 @@ function ProfileAvatar({ name, avatarUrl }: { name: string; avatarUrl: string | 
   );
 }
 
-// ── Form Field ────────────────────────────────────────────────
 function FormField({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -64,31 +51,29 @@ const inputClass = (error?: string) => cn(
   error ? "border-red-400" : "border-slate-200"
 );
 
-// ── Edit Profile Modal ────────────────────────────────────────
 function EditProfileModal({
   profile, onClose, onSave,
 }: {
-  profile: ProfileData;
+  profile: UserProfile;
   onClose: () => void;
-  onSave: (updated: ProfileData) => void;
+  onSave: (updated: UserProfile) => void;
 }) {
   const [form, setForm] = useState({
-    fullName:   profile.fullName,
-    email:      profile.email,
-    department: profile.department,
-    role:       profile.role,
-    address:    profile.address,
-    avatarUrl:  profile.avatarUrl,
+    fullName:    profile.fullName,
+    email:       profile.email,
+    phoneNumber: profile.phoneNumber,
+    role:        profile.role,
+    avatarUrl:   null as string | null,
   });
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const fileInputRef        = useRef<HTMLInputElement>(null);
+  const [errors, setErrors]   = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+  const fileInputRef          = useRef<HTMLInputElement>(null);
 
   const set = (field: string, value: string) => {
     setForm((p) => ({ ...p, [field]: value }));
     setErrors((p) => ({ ...p, [field]: "" }));
   };
 
-  // Handle photo upload — preview locally
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -99,19 +84,47 @@ function EditProfileModal({
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!form.fullName.trim())   e.fullName   = "Full name is required";
-    if (!form.email.trim())      e.email      = "Email is required";
-    if (!form.department.trim()) e.department = "Department is required";
-    if (!form.role.trim())       e.role       = "Role is required";
-    if (!form.address.trim())    e.address    = "Address is required";
+    if (!form.fullName.trim())    e.fullName    = "Full name is required";
+    if (!form.email.trim())       e.email       = "Email is required";
+    if (!form.phoneNumber.trim()) e.phoneNumber = "Phone number is required";
+    if (!form.role.trim())        e.role        = "Role is required";
     return e;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
-    onSave({ ...profile, ...form });
-    onClose();
+
+    setLoading(true);
+    try {
+      const response = await api.patch<{
+        status: boolean;
+        data: { user: UserProfile };
+      }>(`/v1/users/staff/${profile._id}`, {
+        fullName:    form.fullName,
+        email:       form.email,
+        phoneNumber: form.phoneNumber,
+        role:        form.role,
+      });
+
+      // Update localStorage with new name
+      const currentUser = getUser();
+      const token       = getToken();
+      if (currentUser && token) {
+        saveAuth(token, {
+          ...currentUser,
+          name: form.fullName,
+          email: form.email,
+        });
+      }
+
+      onSave(response.data.user);
+      onClose();
+    } catch (error: any) {
+      setErrors({ fullName: error.message ?? "Failed to update profile" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const initials = form.fullName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
@@ -120,20 +133,16 @@ function EditProfileModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 z-10 max-h-[90vh] overflow-y-auto">
-
-        {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-100">
           <h2 className="text-lg font-bold text-slate-800">Edit profile</h2>
           <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-lg transition-colors">
             <X size={18} className="text-slate-500" />
           </button>
         </div>
-
         <div className="p-6 flex flex-col gap-5">
-          {/* Photo upload */}
+          {/* Photo */}
           <div className="flex justify-start mb-2">
             <div className="relative w-20 h-20">
-              {/* Avatar or preview */}
               {form.avatarUrl ? (
                 <img src={form.avatarUrl} alt="avatar" className="w-20 h-20 rounded-full object-cover" />
               ) : (
@@ -141,75 +150,35 @@ function EditProfileModal({
                   {initials}
                 </div>
               )}
-              {/* Camera button overlay */}
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 transition-colors"
               >
                 <Camera size={13} className="text-slate-600" />
               </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handlePhotoChange}
-              />
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
             </div>
           </div>
 
-          {/* Form fields */}
           <FormField label="Full name" error={errors.fullName}>
-            <input
-              className={inputClass(errors.fullName)}
-              placeholder="Enter full name"
-              value={form.fullName}
-              onChange={(e) => set("fullName", e.target.value)}
-            />
+            <input className={inputClass(errors.fullName)} placeholder="Enter full name" value={form.fullName} onChange={(e) => set("fullName", e.target.value)} />
           </FormField>
-
           <FormField label="Email" error={errors.email}>
-            <input
-              className={inputClass(errors.email)}
-              placeholder="Enter email"
-              type="email"
-              value={form.email}
-              onChange={(e) => set("email", e.target.value)}
-            />
+            <input className={inputClass(errors.email)} placeholder="Enter email" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
           </FormField>
-
-          <FormField label="Department" error={errors.department}>
-            <input
-              className={inputClass(errors.department)}
-              placeholder="Enter department"
-              value={form.department}
-              onChange={(e) => set("department", e.target.value)}
-            />
+          <FormField label="Phone number" error={errors.phoneNumber}>
+            <input className={inputClass(errors.phoneNumber)} placeholder="Enter phone number" value={form.phoneNumber} onChange={(e) => set("phoneNumber", e.target.value)} />
           </FormField>
-
           <FormField label="Role" error={errors.role}>
-            <input
-              className={inputClass(errors.role)}
-              placeholder="Enter role"
-              value={form.role}
-              onChange={(e) => set("role", e.target.value)}
-            />
-          </FormField>
-
-          <FormField label="Address" error={errors.address}>
-            <input
-              className={inputClass(errors.address)}
-              placeholder="Enter address"
-              value={form.address}
-              onChange={(e) => set("address", e.target.value)}
-            />
+            <input className={inputClass(errors.role)} placeholder="Enter role" value={form.role} onChange={(e) => set("role", e.target.value)} />
           </FormField>
 
           <button
             onClick={handleSave}
-            className="w-full h-12 rounded-xl bg-primary-500 text-white font-semibold text-sm hover:bg-primary-600 transition-colors mt-2"
+            disabled={loading}
+            className="w-full h-12 rounded-xl bg-primary-500 text-white font-semibold text-sm hover:bg-primary-600 transition-colors mt-2 disabled:opacity-70 flex items-center justify-center gap-2"
           >
-            Update profile
+            {loading ? <><LoadingSpinner size="sm" /> Saving...</> : "Update profile"}
           </button>
         </div>
       </div>
@@ -217,7 +186,6 @@ function EditProfileModal({
   );
 }
 
-// ── Info Field ────────────────────────────────────────────────
 function InfoField({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-1">
@@ -227,19 +195,43 @@ function InfoField({ label, value }: { label: string; value: string }) {
   );
 }
 
-// ── Main Profile Page ─────────────────────────────────────────
 export default function ProfilePage() {
-  const [profile, setProfile]             = useState<ProfileData>(INITIAL_PROFILE);
+  const [profile, setProfile]             = useState<UserProfile | null>(null);
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+
+  const fetchProfile = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{
+        status: boolean;
+        data: { user: UserProfile };
+      }>("/v1/users/me");
+      setProfile(response.data.user);
+    } catch (err: any) {
+      setError(err.message ?? "Failed to load profile");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchProfile(); }, []);
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <LoadingSpinner size="lg" />
+    </div>
+  );
+
+  if (error) return <ErrorState message={error} onRetry={fetchProfile} />;
+  if (!profile) return null;
 
   return (
     <div className="flex flex-col gap-6">
-
-      {/* ── Profile card ──────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-slate-100 p-8">
-        {/* Avatar + Edit */}
         <div className="flex items-center gap-4 mb-8">
-          <ProfileAvatar name={profile.fullName} avatarUrl={profile.avatarUrl} />
+          <ProfileAvatar name={profile.fullName} avatarUrl={null} />
           <button
             onClick={() => setShowEditModal(true)}
             className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-primary-500 transition-colors"
@@ -247,29 +239,21 @@ export default function ProfilePage() {
             ✏️ Edit
           </button>
         </div>
-
-        {/* Info grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-6">
           <InfoField label="Full name"     value={profile.fullName}    />
           <InfoField label="Email address" value={profile.email}       />
-          <InfoField label="Staff Number"  value={profile.staffNumber} />
-          <InfoField label="Department"    value={profile.department}  />
-          <InfoField label="Gender"        value={profile.gender}      />
-          <InfoField label="Address"       value={profile.address}     />
-          <InfoField label="Phone-number"  value={profile.phone}       />
+          <InfoField label="Phone number"  value={profile.phoneNumber} />
           <InfoField label="Role"          value={profile.role}        />
+          <InfoField label="Status"        value={profile.isActive ? "Active" : "Inactive"} />
+          <InfoField label="Member since"  value={new Date(profile.createdAt).toLocaleDateString()} />
         </div>
       </div>
 
-      {/* ── Account activity ──────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-slate-100 p-8">
         <h2 className="text-base font-bold text-slate-800 mb-5">Account activity</h2>
         <div className="flex flex-col gap-4">
           {ACCOUNT_ACTIVITY.map((activity) => (
-            <div
-              key={activity.id}
-              className="flex items-center justify-between p-5 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors"
-            >
+            <div key={activity.id} className="flex items-center justify-between p-5 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">
               <div className="flex flex-col gap-1">
                 <p className="text-sm font-bold text-slate-800">{activity.title}</p>
                 <p className="text-sm text-slate-500">{activity.date}</p>
@@ -280,7 +264,6 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Edit Modal */}
       {showEditModal && (
         <EditProfileModal
           profile={profile}

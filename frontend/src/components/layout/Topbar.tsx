@@ -1,29 +1,22 @@
 import { Bell, ChevronDown, Search } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { getUser } from "@/lib/auth";
 
 interface TopbarProps {
   sidebarCollapsed: boolean;
   pageTitle: string;
-  userName?: string;
-  userRole?: string;
 }
 
-export function Topbar({
-  sidebarCollapsed,
-  pageTitle,
-  userName = "Nurse Glory",
-  userRole = "Clinic manager",
-}: TopbarProps) {
-  const navigate  = useNavigate();
-  const location  = useLocation();
-  const isDoctor  = location.pathname.startsWith("/doctor");
+export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isDoctor = location.pathname.startsWith("/doctor");
 
-  const initials = userName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  // Get real user from localStorage
+  const user     = getUser();
+  const userName = user?.name ?? "User";
+  const userRole = user?.role === "doctor" ? "Doctor" : "Clinic manager";
+  const initials = userName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
   const handleBellClick = () => {
     navigate(isDoctor ? "/doctor/notifications" : "/admin/notifications");
@@ -44,10 +37,7 @@ export function Topbar({
       {/* Search */}
       <div className="flex-1 max-w-2xl mx-auto">
         <div className="relative">
-          <Search
-            size={18}
-            className="absolute left-5 top-1/2 -translate-y-1/2 text-primary-500"
-          />
+          <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-primary-500" />
           <input
             type="search"
             placeholder="Find anything here"
@@ -58,7 +48,7 @@ export function Topbar({
 
       {/* Right side */}
       <div className="flex items-center gap-3 ml-auto shrink-0">
-        {/* Bell — navigates to notifications */}
+        {/* Bell */}
         <button
           onClick={handleBellClick}
           className="relative w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center hover:bg-slate-50 text-slate-600 transition-colors"

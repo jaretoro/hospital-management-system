@@ -26,11 +26,9 @@ export function AdminLayout() {
         onToggle={() => setCollapsed((v) => !v)}
         role="admin"
       />
-      <Topbar
+ <Topbar
   sidebarCollapsed={collapsed}
   pageTitle={pageTitle}
-  userName="Nurse Glory"
-  userRole="Clinic manager"
 />
       <main
         style={{
