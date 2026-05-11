@@ -640,7 +640,7 @@ export default function StaffsPage() {
   
   useEffect(() => { fetchPatients(); }, []);
 
-  useEffect(() => { fetchPatients(currentPage); }, [currentPage]);
+  useEffect(() => { fetchPatients(); }, [currentPage]);
 
   // ── Sort ──────────────────────────────────────────────────
   const handleSort = (field: SortField) => {
@@ -722,7 +722,7 @@ export default function StaffsPage() {
     </div>
   );
 
-  if (error) return <ErrorState message={error} onRetry={() => fetchPatients(currentPage)} />;
+  if (error) return <ErrorState message={error} onRetry={() => fetchPatients()} />;
 
   return (
     <div className="flex flex-col gap-5">

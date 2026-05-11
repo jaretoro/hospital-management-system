@@ -489,7 +489,7 @@ export default function MedicationsPage() {
   
   useEffect(() => { fetchMedications(); }, []);
 
-  useEffect(() => { fetchMedications(currentPage); }, [currentPage]);
+  useEffect(() => { fetchMedications(); }, [currentPage]);
 
   // ── Sort ──────────────────────────────────────────────────
   const handleSort = (field: SortField) => {
@@ -543,7 +543,7 @@ export default function MedicationsPage() {
     </div>
   );
 
-  if (error) return <ErrorState message={error} onRetry={() => fetchMedications(currentPage)} />;
+  if (error) return <ErrorState message={error} onRetry={() => fetchMedications()} />;
 
   return (
     <div className="flex flex-col gap-5">
