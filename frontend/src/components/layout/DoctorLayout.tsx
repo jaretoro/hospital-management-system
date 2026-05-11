@@ -27,11 +27,9 @@ export function DoctorLayout() {
         role="doctor"
       />
       <Topbar
-  sidebarCollapsed={collapsed}
-  pageTitle={pageTitle}
-  userName="Bolanle Olatunji"
-  userRole="Doctor"
-/>
+        sidebarCollapsed={collapsed}
+        pageTitle={pageTitle}
+      />
       <main
         style={{
           paddingLeft: collapsed ? "72px" : "260px",
