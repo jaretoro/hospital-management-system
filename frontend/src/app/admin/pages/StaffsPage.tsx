@@ -628,7 +628,7 @@ export default function StaffsPage() {
           totalPages: number;
           currentPage: number;
         };
-      }>(`/v1/patients`);
+      }>(`/v1/patients?page=${currentPage}&limit=${ITEMS_PER_PAGE}`);
       setPatients(response.data.patients);
       setTotalPages(response.data.totalPages || 1);
     } catch (err: any) {

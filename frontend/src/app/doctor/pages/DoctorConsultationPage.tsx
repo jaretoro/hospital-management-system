@@ -486,7 +486,7 @@ export default function DoctorConsultationPage() {
           total:         number;
           totalPages:    number;
         };
-      }>("/v1/consultations");
+      }>(`/v1/consultations?page=${currentPage}&limit=${ITEMS_PER_PAGE}`);
       setConsultations(response.data.consultations);
       setTotalPages(response.data.totalPages || 1);
     } catch (err: any) {
@@ -496,7 +496,7 @@ export default function DoctorConsultationPage() {
     }
   };
 
-  useEffect(() => { fetchConsultations(); }, []);
+  useEffect(() => { fetchConsultations(); }, [currentPage]);
 
   const handleComplete = () => {
     fetchConsultations();

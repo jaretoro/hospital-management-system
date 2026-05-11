@@ -213,7 +213,7 @@ export default function ConsultationPage() {
           total:         number;
           totalPages:    number;
         };
-      }>("/v1/consultations");
+      }>(`/v1/consultations?page=${currentPage}&limit=${ITEMS_PER_PAGE}`);
       setConsultations(response.data.consultations);
       setTotalPages(response.data.totalPages || 1);
     } catch (err: any) {
@@ -223,7 +223,7 @@ export default function ConsultationPage() {
     }
   };
 
-  useEffect(() => { fetchConsultations(); }, []);
+  useEffect(() => { fetchConsultations(); }, [currentPage]);
 
   if (view === "detail" && selected) {
     return (

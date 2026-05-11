@@ -477,7 +477,7 @@ export default function MedicationsPage() {
           total: number;
           totalPages: number;
         };
-      }>(`/v1/medications`);
+      }>(`/v1/medications?page=${currentPage}&limit=${ITEMS_PER_PAGE}`);
       setMedications(response.data.medications);
       setTotalPages(response.data.totalPages || 1);
     } catch (err: any) {
