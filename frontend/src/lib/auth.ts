@@ -2,7 +2,7 @@ export interface AuthUser {
   id:          string;
   name:        string;
   email:       string;
-  role:        "admin" | "doctor";
+  role:        "admin" | "doctor" | "nurse";
   phoneNumber: string;
   isActive:    boolean;
 }

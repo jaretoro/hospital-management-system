@@ -15,7 +15,11 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
   // Get real user from localStorage
   const user     = getUser();
   const userName = user?.name ?? "User";
-  const userRole = user?.role === "doctor" ? "Doctor" : "Clinic manager";
+  const userRole = user?.role === "doctor" 
+  ? "Doctor" 
+  : user?.role === "nurse"
+  ? "Clinic manager"
+  : "Admin";
   const initials = userName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
   const handleBellClick = () => {

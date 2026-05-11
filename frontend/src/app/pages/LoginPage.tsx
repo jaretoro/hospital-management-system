@@ -2,13 +2,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import medicalStaff from "@/assets/images/medical-staff.jpg";
 import { api } from "@/lib/api";
 import { saveAuth } from "@/lib/auth";
+import medicalStaff from "@/assets/images/medical-staff.jpg";
 
 // ── Types ─────────────────────────────────────────────────────
 type View = "role-select" | "sign-in" | "sign-up" | "forgot-password";
-type Role = "doctor" | "admin" | null;
+type Role = "doctor" | "nurse" | null;
 
 // ── Left Panel ────────────────────────────────────────────────
 function LeftPanel() {
@@ -130,7 +130,7 @@ function RoleSelectView({
 
   return (
     <div className="flex flex-col items-center justify-center h-full px-8 lg:px-16 max-w-lg mx-auto w-full">
-      {/* Logo — centered, large */}
+      {/* Logo */}
       <div className="mb-10 text-center">
         <h1 className="text-3xl font-bold tracking-tight">
           <span className="text-slate-800">SAHCO</span>
@@ -143,7 +143,7 @@ function RoleSelectView({
 
       {/* Role options */}
       <div className="flex flex-col gap-4 w-full mb-8">
-        {(["doctor", "admin"] as Role[]).map((r) => (
+        {(["doctor", "nurse"] as Role[]).map((r) => (
           <label
             key={r}
             onClick={() => setRole(r)}
@@ -152,7 +152,6 @@ function RoleSelectView({
               role === r ? "border-primary-400 bg-white" : "border-slate-200 bg-white hover:border-slate-300"
             )}
           >
-            {/* Radio circle */}
             <div className={cn(
               "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
               role === r ? "border-primary-500" : "border-slate-300"
@@ -160,17 +159,16 @@ function RoleSelectView({
               {role === r && <div className="w-2.5 h-2.5 rounded-full bg-primary-500" />}
             </div>
             <span className={cn(
-              "text-sm font-medium capitalize",
+              "text-sm font-medium",
               role === r ? "text-slate-800" : "text-slate-500"
             )}>
-              {r}
+              {r === "nurse" ? "Nurse / Clinic manager" : "Doctor"}
             </span>
           </label>
         ))}
       </div>
 
       {error && <p className="text-xs text-red-500 mb-4 self-start">{error}</p>}
-
       <OrangeButton label="Continue" onClick={handleContinue} />
     </div>
   );
@@ -206,7 +204,7 @@ function SignInView({
   const handleSignIn = async () => {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
-  
+
     setLoading(true);
     try {
       const response = await api.post<{
@@ -218,7 +216,7 @@ function SignInView({
             _id: string;
             fullName: string;
             email: string;
-            role: "admin" | "doctor";
+            role: "admin" | "doctor" | "nurse";
             phoneNumber: string;
             isActive: boolean;
             createdAt: string;
@@ -228,18 +226,22 @@ function SignInView({
         email:    form.email,
         password: form.password,
       });
-  
+
       const userRole = response.data.user.role;
-  
-      // ── Check if role matches what was selected ──────────
-      if (userRole !== role) {
-        setErrors({
-          email: `This account is registered as a ${userRole}. Please select ${userRole} on the previous screen.`
-        });
+
+      // ── Role validation ─────────────────────────────────
+      if (role === "nurse" && userRole === "doctor") {
+        setErrors({ email: "This is a doctor account. Please select Doctor." });
         setLoading(false);
         return;
       }
-  
+
+      if (role === "doctor" && (userRole === "nurse" || userRole === "admin")) {
+        setErrors({ email: "This is a nurse/admin account. Please select Nurse / Clinic manager." });
+        setLoading(false);
+        return;
+      }
+
       // Save token + user
       saveAuth(response.data.token, {
         id:          response.data.user._id,
@@ -249,10 +251,14 @@ function SignInView({
         phoneNumber: response.data.user.phoneNumber,
         isActive:    response.data.user.isActive,
       });
-  
+
       // Navigate based on role
-      navigate(`/${userRole}/dashboard`);
-  
+      if (userRole === "doctor") {
+        navigate("/doctor/dashboard");
+      } else {
+        navigate("/admin/dashboard");
+      }
+
     } catch (error: any) {
       setErrors({ email: error.message ?? "Invalid email or password" });
     } finally {
@@ -288,7 +294,7 @@ function SignInView({
               type={showPw ? "text" : "password"}
               placeholder="Enter password"
               value={form.password}
-              onChange={(e) => { set("password", e.target.value); }}
+              onChange={(e) => set("password", e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSignIn()}
               className={cn(
                 "w-full h-12 px-4 pr-12 rounded-xl border text-sm text-slate-700",
@@ -305,7 +311,6 @@ function SignInView({
             </button>
           </div>
           {errors.password && <p className="text-xs text-red-500">{errors.password}</p>}
-          {/* Forgot password */}
           <button
             onClick={onForgotPassword}
             className="self-end text-xs text-slate-500 hover:text-primary-500 transition-colors mt-0.5"
@@ -316,7 +321,6 @@ function SignInView({
 
         <OrangeButton label="Sign in" onClick={handleSignIn} loading={loading} />
 
-        {/* Sign up link */}
         <p className="text-center text-sm text-slate-500">
           Don't have an account?{" "}
           <button
@@ -327,7 +331,6 @@ function SignInView({
           </button>
         </p>
 
-        {/* Back */}
         <button
           onClick={onBack}
           className="text-xs text-slate-400 hover:text-slate-600 transition-colors text-center"
@@ -345,11 +348,9 @@ function SignUpView({
 }: {
   role: Role; onGoToSignIn: () => void;
 }) {
-  const navigate = useNavigate();
   const [form, setForm] = useState({
-    fullName: "", email: "", department: "",
-    roleField: role ?? "", address: "",
-    password: "", confirm: "", phone: "",
+    fullName: "", email: "", roleField: role ?? "nurse",
+    address: "", password: "", confirm: "", phone: "",
   });
   const [errors, setErrors]   = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -365,7 +366,6 @@ function SignUpView({
     if (!form.email.trim())      e.email      = "Email is required";
     else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = "Enter a valid email";
     if (!form.phone.trim())      e.phone      = "Phone number is required";
-    if (!form.department.trim()) e.department = "Department is required";
     if (!form.roleField.trim())  e.roleField  = "Role is required";
     if (!form.address.trim())    e.address    = "Address is required";
     if (!form.password.trim())   e.password   = "Password is required";
@@ -384,10 +384,9 @@ function SignUpView({
         fullName:    form.fullName,
         email:       form.email,
         password:    form.password,
-        role:        role ?? "doctor",
+        role:        form.roleField,
         phoneNumber: form.phone,
       });
-      // After successful register → go to sign in
       onGoToSignIn();
     } catch (error: any) {
       setErrors({ email: error.message ?? "Registration failed" });
@@ -399,12 +398,8 @@ function SignUpView({
   return (
     <div className="flex flex-col justify-center min-h-full py-12 px-8 lg:px-16 max-w-lg mx-auto w-full">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800 mb-1 text-center">
-          Get Started
-        </h1>
-        <p className="text-sm text-slate-500 text-center">
-          Let's help you set up your account!
-        </p>
+        <h1 className="text-2xl font-bold text-slate-800 mb-1 text-center">Get Started</h1>
+        <p className="text-sm text-slate-500 text-center">Let's help you set up your account!</p>
       </div>
 
       <div className="flex flex-col gap-5">
@@ -430,20 +425,29 @@ function SignUpView({
           onChange={(v) => set("phone", v)}
           error={errors.phone}
         />
-        <TextInput
-          label="Department"
-          placeholder="Enter department"
-          value={form.department}
-          onChange={(v) => set("department", v)}
-          error={errors.department}
-        />
-        <TextInput
-          label="Role"
-          placeholder="Enter role"
-          value={form.roleField}
-          onChange={(v) => set("roleField", v)}
-          error={errors.roleField}
-        />
+
+        {/* Role select */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-slate-800">
+            Role<span className="text-primary-500">*</span>
+          </label>
+          <select
+            value={form.roleField}
+            onChange={(e) => set("roleField", e.target.value)}
+            className={cn(
+              "w-full h-12 px-4 rounded-xl border text-sm text-slate-700",
+              "focus:outline-none focus:ring-2 focus:ring-primary-400 transition-colors",
+              errors.roleField ? "border-red-400" : "border-slate-200"
+            )}
+          >
+            <option value="">Select role</option>
+            <option value="doctor">Doctor</option>
+            <option value="nurse">Nurse</option>
+            <option value="admin">Admin</option>
+          </select>
+          {errors.roleField && <p className="text-xs text-red-500">{errors.roleField}</p>}
+        </div>
+
         <TextInput
           label="Address"
           placeholder="Enter address"
@@ -466,11 +470,7 @@ function SignUpView({
           error={errors.confirm}
         />
 
-        <OrangeButton
-          label="Sign up"
-          onClick={handleSignUp}
-          loading={loading}
-        />
+        <OrangeButton label="Sign up" onClick={handleSignUp} loading={loading} />
 
         <p className="text-center text-sm text-slate-500">
           Already have an account?{" "}
@@ -485,7 +485,6 @@ function SignUpView({
     </div>
   );
 }
-
 
 // ── Forgot Password View ──────────────────────────────────────
 function ForgotPasswordView({ onBack }: { onBack: () => void }) {
@@ -517,10 +516,7 @@ function ForgotPasswordView({ onBack }: { onBack: () => void }) {
             We've sent a password reset link to{" "}
             <span className="font-medium text-slate-700">{email}</span>.
           </p>
-          <button
-            onClick={onBack}
-            className="mt-4 text-sm text-primary-500 font-medium hover:underline"
-          >
+          <button onClick={onBack} className="mt-4 text-sm text-primary-500 font-medium hover:underline">
             ← Back to sign in
           </button>
         </div>
@@ -528,11 +524,8 @@ function ForgotPasswordView({ onBack }: { onBack: () => void }) {
         <>
           <div className="mb-8 text-center">
             <h1 className="text-2xl font-bold text-slate-800 mb-1">Forgot password?</h1>
-            <p className="text-sm text-slate-500">
-              Enter your email and we'll send you a reset link.
-            </p>
+            <p className="text-sm text-slate-500">Enter your email and we'll send you a reset link.</p>
           </div>
-
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-slate-800">
@@ -552,17 +545,8 @@ function ForgotPasswordView({ onBack }: { onBack: () => void }) {
               />
               {error && <p className="text-xs text-red-500">{error}</p>}
             </div>
-
-            <OrangeButton
-              label="Send reset link"
-              onClick={handleSubmit}
-              loading={loading}
-            />
-
-            <button
-              onClick={onBack}
-              className="text-xs text-slate-400 hover:text-slate-600 transition-colors text-center"
-            >
+            <OrangeButton label="Send reset link" onClick={handleSubmit} loading={loading} />
+            <button onClick={onBack} className="text-xs text-slate-400 hover:text-slate-600 transition-colors text-center">
               ← Back to sign in
             </button>
           </div>
@@ -579,10 +563,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left photo */}
       <LeftPanel />
-
-      {/* Right forms */}
       <div className="w-full lg:w-1/2 min-h-screen flex items-center justify-center bg-white overflow-y-auto">
         {view === "role-select" && (
           <RoleSelectView
@@ -606,9 +587,7 @@ export default function LoginPage() {
           />
         )}
         {view === "forgot-password" && (
-          <ForgotPasswordView
-            onBack={() => setView("sign-in")}
-          />
+          <ForgotPasswordView onBack={() => setView("sign-in")} />
         )}
       </div>
     </div>

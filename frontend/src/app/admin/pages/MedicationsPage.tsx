@@ -1,39 +1,35 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Search, Trash2, Plus, MoreVertical,
   Pencil, X, CalendarIcon, SlidersHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation } from "react-router-dom";
+import { api } from "@/lib/api";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { ErrorState } from "@/components/ui/ErrorState";
 
 // ── Types ─────────────────────────────────────────────────────
 interface Medication {
-  id: number;
-  name: string;
-  category: string;
-  quantity: number;
-  expiryDate: string;
+  _id:               string;
+  name:              string;
+  category:          string;
+  quantity:          number;
+  expiryDate:        string;
+  status:            "in_stock" | "low_stock" | "out_of_stock";
+  lowStockThreshold: number;
+  createdAt:         string;
+  updatedAt:         string;
 }
 
 type SortField = "name" | "category" | null;
 
-// ── Stock threshold logic ─────────────────────────────────────
-function getStockStatus(quantity: number): "In stock" | "Low stock" | "Out of stock" {
-  if (quantity <= 0)  return "Out of stock";
-  if (quantity < 500) return "Low stock";
+// ── Stock status ──────────────────────────────────────────────
+function getStockStatus(status: string): "In stock" | "Low stock" | "Out of stock" {
+  if (status === "out_of_stock") return "Out of stock";
+  if (status === "low_stock")    return "Low stock";
   return "In stock";
 }
-
-// ── Mock Data ─────────────────────────────────────────────────
-const INITIAL_MEDICATIONS: Medication[] = [
-  { id: 1, name: "Cefuroxime",     category: "Antibiotic",   quantity: 1500, expiryDate: "05-08-2029" },
-  { id: 2, name: "Arthrocare",     category: "Analgesic",    quantity: 300,  expiryDate: "05-08-2029" },
-  { id: 3, name: "Ampiclox",       category: "Antibiotic",   quantity: 0,    expiryDate: "05-08-2029" },
-  { id: 4, name: "Amatem softgel", category: "Anti-malaria", quantity: 1500, expiryDate: "05-08-2029" },
-  { id: 5, name: "Diclofenac",     category: "Analgesic",    quantity: 200,  expiryDate: "05-08-2029" },
-  { id: 6, name: "Omeprazole",     category: "PUD",          quantity: 0,    expiryDate: "05-08-2029" },
-  { id: 7, name: "Erythromycin",   category: "URTI",         quantity: 800,  expiryDate: "05-08-2029" },
-];
 
 const CATEGORIES = ["Antibiotic", "Analgesic", "Anti-malaria", "PUD", "URTI"];
 const ITEMS_PER_PAGE = 7;
@@ -52,8 +48,8 @@ function MedIcon() {
 }
 
 // ── Status Badge ──────────────────────────────────────────────
-function StatusBadge({ quantity }: { quantity: number }) {
-  const status = getStockStatus(quantity);
+function StatusBadge({ status }: { status: string }) {
+  const label  = getStockStatus(status);
   const styles = {
     "In stock":     "bg-green-50 text-green-600",
     "Low stock":    "bg-orange-50 text-orange-500",
@@ -67,9 +63,9 @@ function StatusBadge({ quantity }: { quantity: number }) {
   return (
     <span className={cn(
       "inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium",
-      styles[status]
+      styles[label]
     )}>
-      {icons[status]} {status}
+      {icons[label]} {label}
     </span>
   );
 }
@@ -110,10 +106,14 @@ function AddMedicationModal({
   onClose, onAdd,
 }: {
   onClose: () => void;
-  onAdd: (med: Omit<Medication, "id">) => void;
+  onAdd: (med: Medication) => void;
 }) {
-  const [form, setForm]     = useState({ name: "", quantity: "", expiryDate: "", category: "" });
+  const [form, setForm]     = useState({
+    name: "", quantity: "", expiryDate: "",
+    category: "", lowStockThreshold: "30",
+  });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
 
   const set = (field: string, value: string) => {
     setForm((p) => ({ ...p, [field]: value }));
@@ -122,8 +122,8 @@ function AddMedicationModal({
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!form.name.trim())     e.name     = "Medication name is required";
-    if (!form.quantity.trim()) e.quantity = "Quantity is required";
+    if (!form.name.trim())       e.name       = "Medication name is required";
+    if (!form.quantity.trim())   e.quantity   = "Quantity is required";
     else if (isNaN(Number(form.quantity)) || Number(form.quantity) < 0)
       e.quantity = "Enter a valid quantity";
     if (!form.expiryDate.trim()) e.expiryDate = "Expiry date is required";
@@ -131,16 +131,28 @@ function AddMedicationModal({
     return e;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
-    onAdd({
-      name:       form.name,
-      category:   form.category,
-      quantity:   Number(form.quantity),
-      expiryDate: form.expiryDate,
-    });
-    onClose();
+    setLoading(true);
+    try {
+      const response = await api.post<{
+        status: boolean;
+        data: { medication: Medication };
+      }>("/v1/medications", {
+        name:              form.name,
+        category:          form.category,
+        quantity:          Number(form.quantity),
+        expiryDate:        form.expiryDate,
+        lowStockThreshold: Number(form.lowStockThreshold),
+      });
+      onAdd(response.data.medication);
+      onClose();
+    } catch (err: any) {
+      setErrors({ name: err.message ?? "Failed to add medication" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -152,10 +164,10 @@ function AddMedicationModal({
         </button>
       </div>
       <div className="p-6 flex flex-col gap-5">
-        <FormField label="Medication" error={errors.name}>
+        <FormField label="Medication name" error={errors.name}>
           <input
             className={inputClass(errors.name)}
-            placeholder="e.g. Cefuroxime"
+            placeholder="e.g. Paracetamol"
             value={form.name}
             onChange={(e) => set("name", e.target.value)}
           />
@@ -163,7 +175,7 @@ function AddMedicationModal({
         <FormField label="Quantity" error={errors.quantity}>
           <input
             className={inputClass(errors.quantity)}
-            placeholder="e.g. 300"
+            placeholder="e.g. 500"
             type="number"
             min="0"
             value={form.quantity}
@@ -174,7 +186,8 @@ function AddMedicationModal({
           <div className="relative">
             <input
               className={inputClass(errors.expiryDate)}
-              placeholder="e.g. 05-08-2029"
+              placeholder="e.g. 2028-12-31"
+              type="date"
               value={form.expiryDate}
               onChange={(e) => set("expiryDate", e.target.value)}
             />
@@ -191,11 +204,22 @@ function AddMedicationModal({
             {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
           </select>
         </FormField>
+        <FormField label="Low stock threshold" error={undefined}>
+          <input
+            className={inputClass()}
+            placeholder="e.g. 30"
+            type="number"
+            min="0"
+            value={form.lowStockThreshold}
+            onChange={(e) => set("lowStockThreshold", e.target.value)}
+          />
+        </FormField>
         <button
           onClick={handleSubmit}
-          className="w-full h-12 rounded-xl bg-primary-500 text-white font-semibold text-sm hover:bg-primary-600 transition-colors mt-2"
+          disabled={loading}
+          className="w-full h-12 rounded-xl bg-primary-500 text-white font-semibold text-sm hover:bg-primary-600 transition-colors mt-2 disabled:opacity-70 flex items-center justify-center gap-2"
         >
-          Add medication
+          {loading ? <><LoadingSpinner size="sm" /> Adding...</> : "Add medication"}
         </button>
       </div>
     </Modal>
@@ -211,12 +235,15 @@ function EditMedicationModal({
   onUpdate: (updated: Medication) => void;
 }) {
   const [form, setForm] = useState({
-    newQuantity:    "",
-    reduceQuantity: "",
-    expiryDate:     medication.expiryDate,
-    category:       medication.category,
+    addQuantity:      "",
+    reduceQuantity:   "",
+    expiryDate:       medication.expiryDate.split("T")[0],
+    category:         medication.category,
+    lowStockThreshold: medication.lowStockThreshold.toString(),
+    reason:           "",
   });
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors]   = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
 
   const set = (field: string, value: string) => {
     setForm((p) => ({ ...p, [field]: value }));
@@ -226,38 +253,53 @@ function EditMedicationModal({
   // Live preview
   const previewQuantity = useMemo(() => {
     let qty = medication.quantity;
-    if (form.newQuantity.trim() && !isNaN(Number(form.newQuantity)))
-      qty += Number(form.newQuantity);
+    if (form.addQuantity.trim() && !isNaN(Number(form.addQuantity)))
+      qty += Number(form.addQuantity);
     if (form.reduceQuantity.trim() && !isNaN(Number(form.reduceQuantity)))
       qty = Math.max(0, qty - Number(form.reduceQuantity));
     return qty;
-  }, [form.newQuantity, form.reduceQuantity, medication.quantity]);
+  }, [form.addQuantity, form.reduceQuantity, medication.quantity]);
 
   const validate = () => {
     const e: Record<string, string> = {};
     if (!form.expiryDate.trim()) e.expiryDate = "Expiry date is required";
     if (!form.category.trim())   e.category   = "Category is required";
-    if (form.newQuantity && isNaN(Number(form.newQuantity)))
-      e.newQuantity = "Enter a valid number";
+    if (form.addQuantity && isNaN(Number(form.addQuantity)))
+      e.addQuantity = "Enter a valid number";
     if (form.reduceQuantity) {
       if (isNaN(Number(form.reduceQuantity)))
         e.reduceQuantity = "Enter a valid number";
       else if (Number(form.reduceQuantity) > medication.quantity)
         e.reduceQuantity = `Cannot reduce more than current stock (${medication.quantity})`;
     }
+    if ((form.addQuantity || form.reduceQuantity) && !form.reason.trim())
+      e.reason = "Please provide a reason for the stock change";
     return e;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
-    onUpdate({
-      ...medication,
-      quantity:   previewQuantity,
-      expiryDate: form.expiryDate,
-      category:   form.category,
-    });
-    onClose();
+    setLoading(true);
+    try {
+      const response = await api.patch<{
+        status: boolean;
+        data: { medication: Medication };
+      }>(`/v1/medications/${medication._id}`, {
+        addQuantity:      form.addQuantity    ? Number(form.addQuantity)    : 0,
+        reduceQuantity:   form.reduceQuantity ? Number(form.reduceQuantity) : 0,
+        expiryDate:       form.expiryDate,
+        category:         form.category,
+        lowStockThreshold: Number(form.lowStockThreshold),
+        reason:           form.reason || "Stock updated",
+      });
+      onUpdate(response.data.medication);
+      onClose();
+    } catch (err: any) {
+      setErrors({ reason: err.message ?? "Failed to update medication" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -269,14 +311,13 @@ function EditMedicationModal({
         </button>
       </div>
       <div className="p-6 flex flex-col gap-5">
-
         {/* Name — read only */}
         <div>
           <p className="text-sm font-medium text-slate-700 mb-1">Medication</p>
           <p className="text-sm text-slate-500 px-1">{medication.name}</p>
         </div>
 
-        {/* Current quantity — read only */}
+        {/* Current quantity */}
         <FormField label="Current quantity" error={undefined}>
           <div className="flex items-center gap-3">
             <input
@@ -284,23 +325,23 @@ function EditMedicationModal({
               value={`${medication.quantity} pieces`}
               disabled
             />
-            <StatusBadge quantity={medication.quantity} />
+            <StatusBadge status={medication.status} />
           </div>
         </FormField>
 
-        {/* New quantity — ADDS */}
-        <FormField label="New quantity (adds to stock)" error={errors.newQuantity}>
+        {/* Add quantity */}
+        <FormField label="Add quantity (adds to stock)" error={errors.addQuantity}>
           <input
-            className={inputClass(errors.newQuantity)}
+            className={inputClass(errors.addQuantity)}
             placeholder="e.g. 300"
             type="number"
             min="0"
-            value={form.newQuantity}
-            onChange={(e) => set("newQuantity", e.target.value)}
+            value={form.addQuantity}
+            onChange={(e) => set("addQuantity", e.target.value)}
           />
         </FormField>
 
-        {/* Reduce quantity — SUBTRACTS */}
+        {/* Reduce quantity */}
         <FormField label="Reduce quantity (subtracts from stock)" error={errors.reduceQuantity}>
           <input
             className={inputClass(errors.reduceQuantity)}
@@ -313,26 +354,36 @@ function EditMedicationModal({
         </FormField>
 
         {/* Live preview */}
-        {(form.newQuantity || form.reduceQuantity) && (
+        {(form.addQuantity || form.reduceQuantity) && (
           <div className={cn(
             "flex items-center justify-between px-4 py-3 rounded-xl border text-sm",
-            previewQuantity <= 0   ? "bg-red-50 border-red-100"
-            : previewQuantity < 500 ? "bg-orange-50 border-orange-100"
+            previewQuantity <= 0    ? "bg-red-50 border-red-100"
+            : previewQuantity < 100 ? "bg-orange-50 border-orange-100"
             : "bg-green-50 border-green-100"
           )}>
             <span className="text-slate-600">Stock after update:</span>
             <div className="flex items-center gap-2">
               <span className="font-semibold text-slate-800">{previewQuantity} pieces</span>
-              <StatusBadge quantity={previewQuantity} />
             </div>
           </div>
         )}
+
+        {/* Reason */}
+        <FormField label="Reason for change" error={errors.reason}>
+          <input
+            className={inputClass(errors.reason)}
+            placeholder="e.g. Restocking, Dispensed to patient"
+            value={form.reason}
+            onChange={(e) => set("reason", e.target.value)}
+          />
+        </FormField>
 
         {/* Expiry date */}
         <FormField label="Expiry date" error={errors.expiryDate}>
           <div className="relative">
             <input
               className={inputClass(errors.expiryDate)}
+              type="date"
               value={form.expiryDate}
               onChange={(e) => set("expiryDate", e.target.value)}
             />
@@ -352,11 +403,23 @@ function EditMedicationModal({
           </select>
         </FormField>
 
+        {/* Low stock threshold */}
+        <FormField label="Low stock threshold" error={undefined}>
+          <input
+            className={inputClass()}
+            type="number"
+            min="0"
+            value={form.lowStockThreshold}
+            onChange={(e) => set("lowStockThreshold", e.target.value)}
+          />
+        </FormField>
+
         <button
           onClick={handleSubmit}
-          className="w-full h-12 rounded-xl bg-primary-500 text-white font-semibold text-sm hover:bg-primary-600 transition-colors mt-2"
+          disabled={loading}
+          className="w-full h-12 rounded-xl bg-primary-500 text-white font-semibold text-sm hover:bg-primary-600 transition-colors mt-2 disabled:opacity-70 flex items-center justify-center gap-2"
         >
-          Update medication
+          {loading ? <><LoadingSpinner size="sm" /> Updating...</> : "Update medication"}
         </button>
       </div>
     </Modal>
@@ -372,7 +435,7 @@ function ActionDropdown({
   return (
     <>
       <div className="fixed inset-0 z-10" onClick={onClose} />
-      <div className="absolute right-8 z-20 bg-white rounded-xl shadow-card-lg border border-slate-100 py-1 w-36">
+      <div className="absolute right-8 z-20 bg-white rounded-xl shadow-lg border border-slate-100 py-1 w-36">
         <button onClick={onEdit} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
           <Pencil size={15} className="text-slate-400" /> Edit
         </button>
@@ -389,24 +452,54 @@ export default function MedicationsPage() {
   const location = useLocation();
   const isDoctor = location.pathname.startsWith("/doctor");
 
-  const [medications, setMedications]   = useState<Medication[]>(INITIAL_MEDICATIONS);
-  const [selected, setSelected]         = useState<number[]>([]);
+  const [medications, setMedications]   = useState<Medication[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState<string | null>(null);
   const [search, setSearch]             = useState("");
   const [sortField, setSortField]       = useState<SortField>(null);
   const [sortDir, setSortDir]           = useState<"asc" | "desc">("asc");
-  const [openDropdown, setOpenDropdown] = useState<number | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [editingMed, setEditingMed]     = useState<Medication | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [currentPage, setCurrentPage]  = useState(1);
+  const [totalPages, setTotalPages]    = useState(1);
 
+  // ── Fetch medications ─────────────────────────────────────
+  const fetchMedications = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get<{
+        status: boolean;
+        data: {
+          medications: Medication[];
+          count: number;
+          total: number;
+          totalPages: number;
+        };
+      }>(`/v1/medications`);
+      setMedications(response.data.medications);
+      setTotalPages(response.data.totalPages || 1);
+    } catch (err: any) {
+      setError(err.message ?? "Failed to load medications");
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  useEffect(() => { fetchMedications(); }, []);
+
+  useEffect(() => { fetchMedications(currentPage); }, [currentPage]);
+
+  // ── Sort ──────────────────────────────────────────────────
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir((d) => d === "asc" ? "desc" : "asc");
     else { setSortField(field); setSortDir("asc"); }
-    setCurrentPage(1);
   };
 
-  const handleClear = () => { setSortField(null); setSearch(""); setCurrentPage(1); };
+  const handleClear = () => { setSortField(null); setSearch(""); };
 
+  // ── Filtered + sorted ─────────────────────────────────────
   const processed = useMemo(() => {
     let result = medications.filter((m) =>
       m.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -422,30 +515,35 @@ export default function MedicationsPage() {
     return result;
   }, [medications, search, sortField, sortDir]);
 
-  const totalPages = Math.max(1, Math.ceil(processed.length / ITEMS_PER_PAGE));
-  const paginated  = processed.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
-
-  const handleAdd = (med: Omit<Medication, "id">) => {
-    setMedications((p) => [{ ...med, id: Date.now() }, ...p]);
+  // ── CRUD ──────────────────────────────────────────────────
+  const handleAdd = (med: Medication) => {
+    setMedications((p) => [med, ...p]);
   };
 
   const handleUpdate = (updated: Medication) => {
-    setMedications((p) => p.map((m) => m.id === updated.id ? updated : m));
+    setMedications((p) => p.map((m) => m._id === updated._id ? updated : m));
   };
 
-  const deleteSelected = () => {
-    setMedications((p) => p.filter((m) => !selected.includes(m.id)));
-    setSelected([]);
-  };
-
-  const deleteSingle = (id: number) => {
-    setMedications((p) => p.filter((m) => m.id !== id));
-    setSelected((p) => p.filter((i) => i !== id));
-    setOpenDropdown(null);
+  const deleteSingle = async (id: string) => {
+    try {
+      await api.delete(`/v1/medications/${id}`);
+      setMedications((p) => p.filter((m) => m._id !== id));
+      setOpenDropdown(null);
+    } catch (err: any) {
+      alert(err.message ?? "Failed to delete medication");
+    }
   };
 
   const sortIndicator = (field: SortField) =>
     sortField === field ? (sortDir === "asc" ? " ↑" : " ↓") : null;
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <LoadingSpinner size="lg" />
+    </div>
+  );
+
+  if (error) return <ErrorState message={error} onRetry={() => fetchMedications(currentPage)} />;
 
   return (
     <div className="flex flex-col gap-5">
@@ -458,7 +556,7 @@ export default function MedicationsPage() {
             type="search"
             placeholder="Search medications"
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+            onChange={(e) => { setSearch(e.target.value); }}
             className="w-full h-10 pl-10 pr-4 rounded-full border border-slate-200 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
           />
         </div>
@@ -486,7 +584,7 @@ export default function MedicationsPage() {
         </div>
       </div>
 
-      {/* Action buttons — admin only */}
+      {/* Action buttons — nurse only */}
       {!isDoctor && (
         <div className="flex items-center gap-3">
           <button
@@ -494,17 +592,6 @@ export default function MedicationsPage() {
             className="flex items-center gap-2 h-10 px-5 rounded-lg bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors"
           >
             <Plus size={16} /> Add medication
-          </button>
-          <button
-            onClick={deleteSelected}
-            disabled={selected.length === 0}
-            className={cn(
-              "flex items-center gap-2 h-10 px-5 rounded-lg border text-sm font-medium transition-colors",
-              selected.length > 0 ? "border-red-200 text-red-500 hover:bg-red-50" : "border-slate-200 text-slate-400 cursor-not-allowed"
-            )}
-          >
-            <Trash2 size={15} />
-            Delete {selected.length > 0 && `(${selected.length})`}
           </button>
         </div>
       )}
@@ -525,15 +612,15 @@ export default function MedicationsPage() {
             </tr>
           </thead>
           <tbody>
-            {paginated.length === 0 ? (
+            {processed.length === 0 ? (
               <tr>
                 <td colSpan={isDoctor ? 5 : 6} className="text-center py-12 text-sm text-slate-400">
                   No medications found.
                 </td>
               </tr>
             ) : (
-              paginated.map((med) => (
-                <tr key={med.id} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors relative">
+              processed.map((med) => (
+                <tr key={med._id} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors relative">
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-3">
                       <MedIcon />
@@ -542,20 +629,22 @@ export default function MedicationsPage() {
                   </td>
                   <td className="px-4 py-4 text-sm text-slate-500">{med.category}</td>
                   <td className="px-4 py-4 text-sm text-slate-500">{med.quantity} pieces</td>
-                  <td className="px-4 py-4"><StatusBadge quantity={med.quantity} /></td>
-                  <td className="px-4 py-4 text-sm text-slate-500">{med.expiryDate}</td>
+                  <td className="px-4 py-4"><StatusBadge status={med.status} /></td>
+                  <td className="px-4 py-4 text-sm text-slate-500">
+                    {new Date(med.expiryDate).toLocaleDateString()}
+                  </td>
                   {!isDoctor && (
                     <td className="px-4 py-4 relative">
                       <button
-                        onClick={() => setOpenDropdown(openDropdown === med.id ? null : med.id)}
+                        onClick={() => setOpenDropdown(openDropdown === med._id ? null : med._id)}
                         className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
                       >
                         <MoreVertical size={16} />
                       </button>
-                      {openDropdown === med.id && (
+                      {openDropdown === med._id && (
                         <ActionDropdown
                           onEdit={() => { setEditingMed(med); setOpenDropdown(null); }}
-                          onDelete={() => deleteSingle(med.id)}
+                          onDelete={() => deleteSingle(med._id)}
                           onClose={() => setOpenDropdown(null)}
                         />
                       )}
@@ -598,7 +687,7 @@ export default function MedicationsPage() {
         </div>
       </div>
 
-      {/* Modals — admin only */}
+      {/* Modals — nurse only */}
       {!isDoctor && showAddModal && (
         <AddMedicationModal onClose={() => setShowAddModal(false)} onAdd={handleAdd} />
       )}

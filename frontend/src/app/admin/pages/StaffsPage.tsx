@@ -616,7 +616,7 @@ export default function StaffsPage() {
   const [adding, setAdding]               = useState(false);
 
   // ── Fetch patients ────────────────────────────────────────
-  const fetchPatients = async (page = 1) => {
+  const fetchPatients = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -628,15 +628,17 @@ export default function StaffsPage() {
           totalPages: number;
           currentPage: number;
         };
-      }>(`/v1/patients?page=${page}&limit=7`);
+      }>(`/v1/patients`);
       setPatients(response.data.patients);
-      setTotalPages(response.data.totalPages);
+      setTotalPages(response.data.totalPages || 1);
     } catch (err: any) {
       setError(err.message ?? "Failed to load patients");
     } finally {
       setLoading(false);
     }
   };
+  
+  useEffect(() => { fetchPatients(); }, []);
 
   useEffect(() => { fetchPatients(currentPage); }, [currentPage]);
 
