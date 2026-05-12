@@ -462,7 +462,6 @@ export default function MedicationsPage() {
   const [editingMed, setEditingMed]     = useState<Medication | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [currentPage, setCurrentPage]  = useState(1);
-  const [totalPages, setTotalPages]    = useState(1);
 
   // ── Fetch medications ─────────────────────────────────────
   const fetchMedications = async () => {
@@ -477,27 +476,25 @@ export default function MedicationsPage() {
           total: number;
           totalPages: number;
         };
-      }>(`/v1/medications?page=${currentPage}&limit=${ITEMS_PER_PAGE}`);
+      }>(`/v1/medications?page=1&limit=1000`);
       setMedications(response.data.medications);
-      setTotalPages(response.data.totalPages || 1);
     } catch (err: any) {
       setError(err.message ?? "Failed to load medications");
     } finally {
       setLoading(false);
     }
   };
-  
-  useEffect(() => { fetchMedications(); }, []);
 
-  useEffect(() => { fetchMedications(); }, [currentPage]);
+  useEffect(() => { fetchMedications(); }, []);
 
   // ── Sort ──────────────────────────────────────────────────
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir((d) => d === "asc" ? "desc" : "asc");
     else { setSortField(field); setSortDir("asc"); }
+    setCurrentPage(1);
   };
 
-  const handleClear = () => { setSortField(null); setSearch(""); };
+  const handleClear = () => { setSortField(null); setSearch(""); setCurrentPage(1); };
 
   // ── Filtered + sorted ─────────────────────────────────────
   const processed = useMemo(() => {
@@ -514,6 +511,13 @@ export default function MedicationsPage() {
     }
     return result;
   }, [medications, search, sortField, sortDir]);
+
+  // ── Client-side pagination ────────────────────────────────
+  const totalPages     = Math.max(1, Math.ceil(processed.length / ITEMS_PER_PAGE));
+  const paginatedItems = processed.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   // ── CRUD ──────────────────────────────────────────────────
   const handleAdd = (med: Medication) => {
@@ -556,7 +560,7 @@ export default function MedicationsPage() {
             type="search"
             placeholder="Search medications"
             value={search}
-            onChange={(e) => { setSearch(e.target.value); }}
+            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             className="w-full h-10 pl-10 pr-4 rounded-full border border-slate-200 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
           />
         </div>
@@ -612,14 +616,14 @@ export default function MedicationsPage() {
             </tr>
           </thead>
           <tbody>
-            {processed.length === 0 ? (
+            {paginatedItems.length === 0 ? (
               <tr>
                 <td colSpan={isDoctor ? 5 : 6} className="text-center py-12 text-sm text-slate-400">
                   No medications found.
                 </td>
               </tr>
             ) : (
-              processed.map((med) => (
+              paginatedItems.map((med) => (
                 <tr key={med._id} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors relative">
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-3">

@@ -610,7 +610,6 @@ export default function StaffsPage() {
   const [showAddModal, setShowAddModal]   = useState(false);
   const [vitalsPatient, setVitalsPatient] = useState<Patient | null>(null);
   const [currentPage, setCurrentPage]     = useState(1);
-  const [totalPages, setTotalPages]       = useState(1);
   const [view, setView]                   = useState<View>("list");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [adding, setAdding]               = useState(false);
@@ -628,27 +627,25 @@ export default function StaffsPage() {
           totalPages: number;
           currentPage: number;
         };
-      }>(`/v1/patients?page=${currentPage}&limit=${ITEMS_PER_PAGE}`);
+      }>(`/v1/patients?page=1&limit=1000`);
       setPatients(response.data.patients);
-      setTotalPages(response.data.totalPages || 1);
     } catch (err: any) {
       setError(err.message ?? "Failed to load patients");
     } finally {
       setLoading(false);
     }
   };
-  
-  useEffect(() => { fetchPatients(); }, []);
 
-  useEffect(() => { fetchPatients(); }, [currentPage]);
+  useEffect(() => { fetchPatients(); }, []);
 
   // ── Sort ──────────────────────────────────────────────────
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir((d) => d === "asc" ? "desc" : "asc");
     else { setSortField(field); setSortDir("asc"); }
+    setCurrentPage(1);
   };
 
-  const handleClear = () => { setSortField(null); setSearch(""); };
+  const handleClear = () => { setSortField(null); setSearch(""); setCurrentPage(1); };
 
   // ── Filtered + sorted ─────────────────────────────────────
   const processed = useMemo(() => {
@@ -665,6 +662,13 @@ export default function StaffsPage() {
     }
     return result;
   }, [patients, search, sortField, sortDir]);
+
+  // ── Client-side pagination ────────────────────────────────
+  const totalPages      = Math.max(1, Math.ceil(processed.length / ITEMS_PER_PAGE));
+  const paginatedItems  = processed.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   // ── Add patient ───────────────────────────────────────────
   const handleAdd = async (data: any) => {
@@ -783,10 +787,10 @@ export default function StaffsPage() {
             </tr>
           </thead>
           <tbody>
-            {processed.length === 0 ? (
+            {paginatedItems.length === 0 ? (
               <tr><td colSpan={6} className="text-center py-12 text-sm text-slate-400">No patients found.</td></tr>
             ) : (
-              processed.map((patient) => (
+              paginatedItems.map((patient) => (
                 <tr key={patient._id} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors relative">
                   <td className="px-6 py-4 text-sm font-medium text-slate-700">{patient.fullName}</td>
                   <td className="px-6 py-4 text-sm text-slate-500">{patient.staffNumber}</td>
