@@ -243,7 +243,6 @@ function PatientForm({
 
 // ── Record Vitals Modal ───────────────────────────────────────
 function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: () => void }) {
-  const [consultationId, setConsultationId] = useState<string | null>(null);
   const [form, setForm]   = useState<Vitals>({
     bloodPressure: "", heartRate: "",
     temperature: "", height: patient.height.toString(), weight: patient.weight.toString(),
@@ -251,7 +250,6 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
   const [errors, setErrors]   = useState<Record<string, string>>({});
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [step, setStep]       = useState<"vitals" | "sending">("vitals");
 
   const set = (field: string, value: string) => {
     setForm((p) => ({ ...p, [field]: value }));
@@ -284,7 +282,6 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
       });
 
       const newConsultationId = checkInRes.data.consultation._id;
-      setConsultationId(newConsultationId);
 
       // 2. Record vitals
       await api.patch(`/v1/consultations/${newConsultationId}/vitals`, {
@@ -801,7 +798,7 @@ export default function StaffsPage() {
           total:       number;
           totalPages:  number;
         };
-      }>("/v1/patients");
+      }>(`/v1/patients?page=${currentPage}&limit=${ITEMS_PER_PAGE}`);
       setPatients(response.data.patients);
       setTotalPages(response.data.totalPages || 1);
     } catch (err: any) {
@@ -811,7 +808,7 @@ export default function StaffsPage() {
     }
   };
 
-  useEffect(() => { fetchPatients(); }, []);
+  useEffect(() => { fetchPatients(); }, [currentPage]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir((d) => d === "asc" ? "desc" : "asc");
