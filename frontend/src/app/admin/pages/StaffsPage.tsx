@@ -242,6 +242,7 @@ function PatientForm({
 }
 
 // ── Record Vitals Modal ───────────────────────────────────────
+// ── Record Vitals Modal ───────────────────────────────────────
 function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: () => void }) {
   const [form, setForm]   = useState<Vitals>({
     bloodPressure: "", heartRate: "",
@@ -266,38 +267,61 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
     return e;
   };
 
-  // Step 1 — Check in patient + record vitals + send to doctor
+  // ── Check if patient already has active consultation ────────
+  const getOrCreateConsultation = async (): Promise<string> => {
+    try {
+      const existing = await api.get<{
+        data: { consultations: { _id: string; status: string; patient: any }[] };
+      }>("/v1/consultations");
+
+      const activeConsultation = existing.data.consultations.find((c) => {
+        const patientId = typeof c.patient === "object"
+          ? c.patient._id
+          : c.patient;
+        return (
+          patientId === patient._id &&
+          (c.status === "waiting" || c.status === "in_consultation")
+        );
+      });
+
+      if (activeConsultation) return activeConsultation._id;
+    } catch {
+      // If check fails just create new one
+    }
+
+    // No active consultation found — create new one
+    const response = await api.post<{
+      data: { consultation: { _id: string } };
+    }>("/v1/consultations/check-in", {
+      patientId: patient._id,
+      complaint: "",
+    });
+    return response.data.consultation._id;
+  };
+
+  // ── Record vitals helper ─────────────────────────────────────
+  const recordVitals = async (consultationId: string) => {
+    await api.patch(`/v1/consultations/${consultationId}/vitals`, {
+      bloodPressure: form.bloodPressure,
+      heartRate:     Number(form.heartRate),
+      temperature:   Number(form.temperature),
+      height:        Number(form.height),
+      weight:        Number(form.weight),
+    });
+  };
+
+  // ── Send to doctor ───────────────────────────────────────────
   const handleSendToDoctor = async () => {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
 
     setLoading(true);
     try {
-      // 1. Check in patient
-      const checkInRes = await api.post<{
-        data: { consultation: { _id: string } };
-      }>("/v1/consultations/check-in", {
-        patientId: patient._id,
-        complaint: "Vitals recorded by nurse",
-      });
-
-      const newConsultationId = checkInRes.data.consultation._id;
-
-      // 2. Record vitals
-      await api.patch(`/v1/consultations/${newConsultationId}/vitals`, {
-        bloodPressure: form.bloodPressure,
-        heartRate:     Number(form.heartRate),
-        temperature:   Number(form.temperature),
-        height:        Number(form.height),
-        weight:        Number(form.weight),
-      });
-
-      // 3. Send to doctor
-      await api.patch(`/v1/consultations/${newConsultationId}/send-to-doctor`, {});
-
+      const consultationId = await getOrCreateConsultation();
+      await recordVitals(consultationId);
+      await api.patch(`/v1/consultations/${consultationId}/send-to-doctor`, {});
       setSuccess(true);
       setTimeout(() => onClose(), 2500);
-
     } catch (err: any) {
       alert(err.message ?? "Failed to send to doctor");
     } finally {
@@ -305,32 +329,15 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
     }
   };
 
-  // Save vitals only (check in + record vitals but don't send to doctor)
+  // ── Save vitals only ─────────────────────────────────────────
   const handleSaveVitals = async () => {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
 
     setLoading(true);
     try {
-      // 1. Check in patient
-      const checkInRes = await api.post<{
-        data: { consultation: { _id: string } };
-      }>("/v1/consultations/check-in", {
-        patientId: patient._id,
-        complaint: "Vitals recorded by nurse",
-      });
-
-      const newConsultationId = checkInRes.data.consultation._id;
-
-      // 2. Record vitals only
-      await api.patch(`/v1/consultations/${newConsultationId}/vitals`, {
-        bloodPressure: form.bloodPressure,
-        heartRate:     Number(form.heartRate),
-        temperature:   Number(form.temperature),
-        height:        Number(form.height),
-        weight:        Number(form.weight),
-      });
-
+      const consultationId = await getOrCreateConsultation();
+      await recordVitals(consultationId);
       onClose();
     } catch (err: any) {
       alert(err.message ?? "Failed to save vitals");

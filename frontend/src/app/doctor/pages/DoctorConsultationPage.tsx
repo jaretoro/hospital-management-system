@@ -241,12 +241,13 @@ function MedicalRecordEdit({
 
   const validate = () => {
     const e: Record<string, string> = {};
+    // Only diagnosis is required
     if (!diagnosis.trim()) e.diagnosis = "Diagnosis is required";
+    // Prescription lines only validated if medication is selected
     prescription.forEach((item) => {
-      if (!item.medication) e[`med_${item.id}`] = "Select a medication";
-      if (!item.quantity)   e[`qty_${item.id}`] = "Enter quantity";
-      if (!item.dosage)     e[`dos_${item.id}`] = "Enter dosage";
-      if (!item.duration)   e[`dur_${item.id}`] = "Enter duration";
+      if (item.medication && !item.quantity)  e[`qty_${item.id}`] = "Enter quantity";
+      if (item.medication && !item.dosage)    e[`dos_${item.id}`] = "Enter dosage";
+      if (item.medication && !item.duration)  e[`dur_${item.id}`] = "Enter duration";
     });
     return e;
   };
@@ -263,7 +264,9 @@ function MedicalRecordEdit({
           ? `\n\nAdditional prescription notes: ${prescriptionNotes}`
           : ""),
         complaint: consultation.complaint,
-        prescriptions: prescription.map((p) => ({
+        prescriptions: prescription
+        .filter((p) => p.medication)
+        .map((p) => ({
           medication:     p.medication,
           medicationName: p.medicationName,
           dosage:         p.dosage,
@@ -521,7 +524,9 @@ export default function DoctorConsultationPage() {
   useEffect(() => { fetchConsultations(); }, []);
 
   const handleComplete = () => {
-    fetchConsultations();
+    setTimeout(() => {
+      fetchConsultations();
+    }, 500);
     setView("list");
     setSelected(null);
   };
