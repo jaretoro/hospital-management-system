@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AreaChart, Area, XAxis, YAxis,
@@ -14,6 +14,8 @@ import {
   addMonths, subMonths, isToday,
 } from "date-fns";
 import { cn } from "@/lib/utils";
+import { getUser } from "@/lib/auth";
+import stethoscope from "@/assets/images/stethoscope.png";
 
 // ── Mock Data ─────────────────────────────────────────────────
 const CHART_DATA = [
@@ -56,11 +58,11 @@ const NOTIFICATIONS = [
 ];
 
 // ── Helpers ───────────────────────────────────────────────────
-function getGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
+function getGreeting(name: string): string {
+  const hour      = new Date().getHours();
+  const timeOfDay = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+  const firstName = name.split(" ")[0];
+  return `Good ${timeOfDay}, Dr. ${firstName}`;
 }
 
 function StaffAvatar({ name }: { name: string }) {
@@ -88,104 +90,7 @@ function QueueStatusBadge({ status }: { status: string }) {
 }
 
 // ── Stethoscope SVG ───────────────────────────────────────────
-function StethoscopeIllustration() {
-  return (
-    <svg
-      width="200"
-      height="170"
-      viewBox="0 0 200 170"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="shrink-0"
-    >
-      {/* ── Purple blob background ───────────────────────── */}
-      <ellipse cx="110" cy="90" rx="75" ry="55" fill="#EEE8FF" opacity="0.7" />
 
-      {/* ── Left earpiece (blue) ─────────────────────────── */}
-      <circle cx="55"  cy="28" r="7" fill="#4A90D9" />
-      <circle cx="55"  cy="28" r="4" fill="#6AAFE6" />
-      <circle cx="53"  cy="26" r="1.5" fill="white" opacity="0.6" />
-
-      {/* ── Right earpiece (blue) ────────────────────────── */}
-      <circle cx="105" cy="22" r="7" fill="#4A90D9" />
-      <circle cx="105" cy="22" r="4" fill="#6AAFE6" />
-      <circle cx="103" cy="20" r="1.5" fill="white" opacity="0.6" />
-
-      {/* ── Ear tubes ────────────────────────────────────── */}
-      <path
-        d="M55 35 C55 52 62 60 80 60 C98 60 105 52 105 30"
-        stroke="#1a1a2e"
-        strokeWidth="5"
-        strokeLinecap="round"
-        fill="none"
-      />
-      {/* Tube highlight */}
-      <path
-        d="M55 35 C55 52 62 60 80 60 C98 60 105 52 105 30"
-        stroke="#3a3a5e"
-        strokeWidth="2"
-        strokeLinecap="round"
-        fill="none"
-        opacity="0.4"
-      />
-
-      {/* ── Main tube going down ─────────────────────────── */}
-      <path
-        d="M80 60 C80 85 76 105 70 125 C66 138 67 145 78 150"
-        stroke="#1a1a2e"
-        strokeWidth="7"
-        strokeLinecap="round"
-        fill="none"
-      />
-      {/* Shadow */}
-      <path
-        d="M80 60 C80 85 76 105 70 125 C66 138 67 145 78 150"
-        stroke="#000"
-        strokeWidth="7"
-        strokeLinecap="round"
-        fill="none"
-        opacity="0.15"
-        transform="translate(2,2)"
-      />
-      {/* Highlight */}
-      <path
-        d="M80 60 C81 80 78 98 73 118"
-        stroke="#4a4a7e"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        fill="none"
-        opacity="0.4"
-      />
-
-      {/* ── Chest piece outer ring ────────────────────────── */}
-      <circle cx="78" cy="152" r="20" fill="#c8ccd4" />
-      <circle cx="78" cy="152" r="18" fill="#e8eaed" />
-
-      {/* ── Chest piece body ─────────────────────────────── */}
-      <circle cx="78" cy="152" r="15" fill="#d0d4db" />
-      <circle cx="78" cy="152" r="12" fill="#b8bcc4" />
-
-      {/* ── Blue glass center ─────────────────────────────── */}
-      <circle cx="78" cy="152" r="9"  fill="#4A90D9" />
-      <circle cx="78" cy="152" r="7"  fill="#5BA3E8" />
-      <circle cx="78" cy="152" r="4"  fill="#7BBCF0" />
-
-      {/* ── Glass shine ──────────────────────────────────── */}
-      <circle cx="74" cy="148" r="2.5" fill="white" opacity="0.5" />
-      <circle cx="76" cy="146" r="1"   fill="white" opacity="0.35" />
-
-      {/* ── Chest piece screws ────────────────────────────── */}
-      <circle cx="66" cy="152" r="1.5" fill="#a0a4ac" />
-      <circle cx="90" cy="152" r="1.5" fill="#a0a4ac" />
-
-      {/* ── Ripple lines around chest piece ─────────────── */}
-      <path d="M58 138 Q48 145 50 158" stroke="#d0d4db" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-      <path d="M55 135 Q43 143 46 160" stroke="#d0d4db" strokeWidth="1"   fill="none" strokeLinecap="round" opacity="0.6" />
-      <path d="M98 138 Q108 145 106 158" stroke="#d0d4db" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-      <path d="M101 135 Q113 143 110 160" stroke="#d0d4db" strokeWidth="1"  fill="none" strokeLinecap="round" opacity="0.6" />
-    </svg>
-  );
-}
 
 // ── Calendar ──────────────────────────────────────────────────
 function Calendar() {
@@ -255,28 +160,24 @@ function NotificationIcon() {
 
 // ── Main Page ─────────────────────────────────────────────────
 export default function DoctorDashboardPage() {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
   const [period, setPeriod] = useState<"Weekly" | "Monthly">("Weekly");
   const chartData = period === "Weekly" ? CHART_DATA : MONTHLY_DATA;
 
-  // suppress unused warning
-  void useMemo(() => ({
-    waiting:        PATIENT_QUEUE.filter((p) => p.status === "Waiting").length,
-    inConsultation: PATIENT_QUEUE.filter((p) => p.status === "In consultation").length,
-  }), []);
+  // ── Get real logged in user ───────────────────────────────
+  const user     = getUser();
+  const greeting = getGreeting(user?.name ?? "Doctor");
 
   return (
     <div className="flex flex-col gap-6">
 
-      {/* ── Row 1: Greeting + Calendar ──────────────────────── */}
+      {/* ── Row 1: Greeting + Calendar ─────────────────────── */}
       <div className="flex gap-6">
-
-        {/* Greeting card */}
         <div className="flex-1 bg-white rounded-2xl border border-slate-100 p-8 flex items-center justify-between">
           <div className="flex flex-col gap-4">
             <div>
               <h1 className="text-2xl font-bold text-primary-500">
-                {getGreeting()}, Dr. Olatunji
+                {greeting}
               </h1>
               <p className="text-sm text-slate-500 mt-1">
                 Here's your schedule for today
@@ -289,20 +190,15 @@ export default function DoctorDashboardPage() {
               Start Consultation
             </button>
           </div>
-          <StethoscopeIllustration />
+          <img src={stethoscope} alt="Stethoscope" className="w-48 h-auto shrink-0 object-contain" />
         </div>
-
-        {/* Calendar */}
         <div className="w-72 shrink-0">
           <Calendar />
         </div>
-
       </div>
 
-      {/* ── Row 2: Chart + Notifications ────────────────────── */}
+      {/* ── Row 2: Chart + Notifications ───────────────────── */}
       <div className="flex gap-6">
-
-        {/* Report analysis */}
         <div className="flex-1 bg-white rounded-2xl border border-slate-100 p-6">
           <div className="flex items-center justify-between mb-1">
             <h2 className="text-base font-bold text-slate-800">Report analysis</h2>
@@ -315,9 +211,7 @@ export default function DoctorDashboardPage() {
               <option>Monthly</option>
             </select>
           </div>
-          <p className="text-xs text-slate-400 mb-3">
-            Average number of staffs seen in a week
-          </p>
+          <p className="text-xs text-slate-400 mb-3">Average number of staffs seen in a week</p>
           <div className="flex items-center gap-2 mb-4">
             <span className="text-2xl font-bold text-primary-500">87%</span>
             <TrendingUp size={18} className="text-primary-500" />
@@ -338,13 +232,10 @@ export default function DoctorDashboardPage() {
           </ResponsiveContainer>
         </div>
 
-        {/* Notifications */}
         <div className="w-72 shrink-0 bg-white rounded-2xl border border-slate-100 p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-bold text-slate-800">Notifications</h2>
-            <button className="text-sm text-primary-500 font-medium hover:underline">
-              Show more
-            </button>
+            <button className="text-sm text-primary-500 font-medium hover:underline">Show more</button>
           </div>
           <div className="flex flex-col gap-1">
             {NOTIFICATIONS.map((notif) => (
@@ -353,24 +244,18 @@ export default function DoctorDashboardPage() {
                 className="flex items-center gap-3 w-full hover:bg-slate-50 rounded-xl px-2 py-2.5 transition-colors"
               >
                 <NotificationIcon />
-                <p className="text-sm font-medium text-slate-700 flex-1 text-left">
-                  {notif.title}
-                </p>
-                <span className="text-xs text-slate-400 shrink-0">
-                  {notif.timeAgo}
-                </span>
+                <p className="text-sm font-medium text-slate-700 flex-1 text-left">{notif.title}</p>
+                <span className="text-xs text-slate-400 shrink-0">{notif.timeAgo}</span>
                 <ChevronRight size={14} className="text-slate-300 shrink-0" />
               </button>
             ))}
           </div>
         </div>
-
       </div>
 
-      {/* ── Row 3: Patient queue + Recent consultations ──────── */}
+      {/* ── Row 3: Patient queue + Recent consultations ─────── */}
       <div className="grid grid-cols-2 gap-6">
 
-        {/* Patient queue */}
         <div className="bg-white rounded-2xl border border-slate-100 p-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-base font-bold text-slate-800">Patient queue</h2>
@@ -388,9 +273,7 @@ export default function DoctorDashboardPage() {
                 <span className="text-sm font-medium text-slate-700 w-28 shrink-0 truncate">
                   {patient.name}
                 </span>
-                <span className="text-sm text-slate-400 shrink-0">
-                  {patient.staffNumber}
-                </span>
+                <span className="text-sm text-slate-400 shrink-0">{patient.staffNumber}</span>
                 <div className="flex-1 flex justify-end items-center gap-2">
                   <QueueStatusBadge status={patient.status} />
                   <button
@@ -405,7 +288,6 @@ export default function DoctorDashboardPage() {
           </div>
         </div>
 
-        {/* Recent consultations */}
         <div className="bg-white rounded-2xl border border-slate-100 p-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-base font-bold text-slate-800">Recent consultation</h2>
@@ -417,12 +299,8 @@ export default function DoctorDashboardPage() {
                 <span className="text-sm font-medium text-slate-700 w-28 shrink-0 truncate">
                   {item.name}
                 </span>
-                <span className="text-sm text-slate-400 shrink-0">
-                  {item.staffNumber}
-                </span>
-                <span className="text-sm text-slate-400 ml-auto shrink-0">
-                  {item.timeAgo}
-                </span>
+                <span className="text-sm text-slate-400 shrink-0">{item.staffNumber}</span>
+                <span className="text-sm text-slate-400 ml-auto shrink-0">{item.timeAgo}</span>
               </div>
             ))}
           </div>

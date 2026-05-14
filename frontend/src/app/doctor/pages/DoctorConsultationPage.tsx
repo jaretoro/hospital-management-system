@@ -55,8 +55,6 @@ interface PrescriptionItem {
 
 type View = "list" | "edit" | "view";
 
-const ITEMS_PER_PAGE = 7;
-
 // ── Status Badge ──────────────────────────────────────────────
 function StatusBadge({ status }: { status: Consultation["status"] }) {
   const styles = {
@@ -117,11 +115,9 @@ function SuccessState({ onClose }: { onClose: () => void }) {
 
 // ── Medical Record View (read-only) ───────────────────────────
 function MedicalRecordView({
-  consultation,
-  onBack,
+  consultation, onBack,
 }: {
-  consultation: Consultation;
-  onBack: () => void;
+  consultation: Consultation; onBack: () => void;
 }) {
   return (
     <div className="flex flex-col gap-6">
@@ -138,7 +134,11 @@ function MedicalRecordView({
           </div>
           <div className="text-right">
             <p className="text-sm text-slate-500">Patient: <span className="font-medium text-slate-700">{consultation.patientName}</span></p>
-            <p className="text-sm text-slate-500 mt-1">Time: <span className="font-medium text-slate-700">{new Date(consultation.checkInTime).toLocaleTimeString()}</span></p>
+            <p className="text-sm text-slate-500 mt-1">
+              Time: <span className="font-medium text-slate-700">
+                {new Date(consultation.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </p>
           </div>
         </div>
 
@@ -199,21 +199,18 @@ function MedicalRecordView({
 
 // ── Medical Record Edit ───────────────────────────────────────
 function MedicalRecordEdit({
-  consultation,
-  onBack,
-  onComplete,
+  consultation, onBack, onComplete,
 }: {
-  consultation: Consultation;
-  onBack: () => void;
-  onComplete: () => void;
+  consultation: Consultation; onBack: () => void; onComplete: () => void;
 }) {
-  const [diagnosis,     setDiagnosis]     = useState("");
-  const [diagnosisNotes, setDiagnosisNotes] = useState("");
-  const [prescription,  setPrescription]  = useState<PrescriptionItem[]>([]);
-  const [medications,   setMedications]   = useState<Medication[]>([]);
-  const [showSuccess,   setShowSuccess]   = useState(false);
-  const [loading,       setLoading]       = useState(false);
-  const [errors,        setErrors]        = useState<Record<string, string>>({});
+  const [diagnosis,        setDiagnosis]        = useState("");
+  const [diagnosisNotes,   setDiagnosisNotes]   = useState("");
+  const [prescriptionNotes, setPrescriptionNotes] = useState("");
+  const [prescription,     setPrescription]     = useState<PrescriptionItem[]>([]);
+  const [medications,      setMedications]      = useState<Medication[]>([]);
+  const [showSuccess,      setShowSuccess]      = useState(false);
+  const [loading,          setLoading]          = useState(false);
+  const [errors,           setErrors]           = useState<Record<string, string>>({});
 
   // Fetch available medications
   useEffect(() => {
@@ -240,9 +237,7 @@ function MedicalRecordEdit({
     }));
   };
 
-  const removeLine = (id: number) => {
-    setPrescription((p) => p.filter((item) => item.id !== id));
-  };
+  const removeLine = (id: number) => setPrescription((p) => p.filter((item) => item.id !== id));
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -264,7 +259,9 @@ function MedicalRecordEdit({
     try {
       await api.patch(`/v1/consultations/${consultation._id}/diagnose`, {
         diagnosis,
-        diagnosisNotes,
+        diagnosisNotes: diagnosisNotes + (prescriptionNotes.trim()
+          ? `\n\nAdditional prescription notes: ${prescriptionNotes}`
+          : ""),
         complaint: consultation.complaint,
         prescriptions: prescription.map((p) => ({
           medication:     p.medication,
@@ -300,10 +297,21 @@ function MedicalRecordEdit({
 
         <div className="flex justify-between mb-6 pb-6 border-b border-slate-100">
           <div>
-            <p className="text-sm text-slate-500">Date: <span className="font-medium text-slate-700">{new Date(consultation.checkInTime).toLocaleDateString()}</span></p>
+            <p className="text-sm text-slate-500">
+              Date: <span className="font-medium text-slate-700">
+                {new Date(consultation.checkInTime).toLocaleDateString()}
+              </span>
+            </p>
           </div>
           <div className="text-right">
-            <p className="text-sm text-slate-500">Patient: <span className="font-medium text-slate-700">{consultation.patientName}</span></p>
+            <p className="text-sm text-slate-500">
+              Patient: <span className="font-medium text-slate-700">{consultation.patientName}</span>
+            </p>
+            <p className="text-sm text-slate-500 mt-1">
+              Time: <span className="font-medium text-slate-700">
+                {new Date(consultation.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </p>
           </div>
         </div>
 
@@ -328,7 +336,7 @@ function MedicalRecordEdit({
           </div>
         )}
 
-        {/* Symptoms — read only from check-in */}
+        {/* Symptoms — read only */}
         <div className="border border-slate-100 rounded-xl p-5 mb-4">
           <h3 className="text-sm font-bold text-slate-700 mb-3">🧠 Symptoms</h3>
           <p className="text-sm text-slate-600">{consultation.complaint}</p>
@@ -347,7 +355,7 @@ function MedicalRecordEdit({
           {errors.diagnosis && <p className="text-xs text-red-500 mt-1">{errors.diagnosis}</p>}
           <textarea
             rows={3}
-            placeholder="Additional notes (optional)..."
+            placeholder="Additional diagnosis notes (optional)..."
             value={diagnosisNotes}
             onChange={(e) => setDiagnosisNotes(e.target.value)}
             className={cn(textareaClass("diagnosisNotes"), "mt-3")}
@@ -446,6 +454,20 @@ function MedicalRecordEdit({
               ))}
             </div>
           )}
+
+          {/* Free text area for additional notes */}
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            <p className="text-xs text-slate-400 mb-2">
+              Additional notes (e.g. medications to get from pharmacy outside)
+            </p>
+            <textarea
+              rows={3}
+              placeholder="e.g. Patient should also get Vitamin C 500mg from any pharmacy..."
+              value={prescriptionNotes}
+              onChange={(e) => setPrescriptionNotes(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-colors resize-none"
+            />
+          </div>
         </div>
 
         {/* Complete button */}
@@ -486,7 +508,7 @@ export default function DoctorConsultationPage() {
           total:         number;
           totalPages:    number;
         };
-      }>(`/v1/consultations?page=${currentPage}&limit=${ITEMS_PER_PAGE}`);
+      }>("/v1/consultations");
       setConsultations(response.data.consultations);
       setTotalPages(response.data.totalPages || 1);
     } catch (err: any) {
@@ -496,7 +518,7 @@ export default function DoctorConsultationPage() {
     }
   };
 
-  useEffect(() => { fetchConsultations(); }, [currentPage]);
+  useEffect(() => { fetchConsultations(); }, []);
 
   const handleComplete = () => {
     fetchConsultations();

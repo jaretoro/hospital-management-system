@@ -5,7 +5,7 @@ import {
   ChevronRight, ArrowLeft, Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -30,38 +30,42 @@ interface Patient {
   updatedAt:   string;
 }
 
-interface MedicalRecord {
-  id: number;
-  patientId: string;
-  date: string;
-  diagnosis: string;
-  dateOfVisitation: string;
-  status: "Waiting" | "In Consultation" | "Completed";
+interface Consultation {
+  _id:        string;
+  diagnosis?: string;
+  complaint:  string;
+  status:     string;
+  checkInTime: string;
+  vitals?: {
+    bloodPressure: string;
+    heartRate:     number;
+    temperature:   number;
+    height:        number;
+    weight:        number;
+  };
+  prescriptions: {
+    _id:            string;
+    medicationName: string;
+    dosage:         string;
+    quantity:       number;
+    duration:       string;
+  }[];
+  attendedBy?: { _id: string; fullName: string };
 }
 
 interface Vitals {
   bloodPressure: string;
-  heartRate: string;
-  temperature: string;
-  height: string;
-  weight: string;
+  heartRate:     string;
+  temperature:   string;
+  height:        string;
+  weight:        string;
 }
 
 type SortField = "department" | "staffNumber" | null;
-type View = "list" | "detail";
+type View      = "list" | "detail";
 
-// ── Mock Medical Records (until consultation API is connected) ─
-const MOCK_MEDICAL_RECORDS: MedicalRecord[] = [
-  { id: 1,  patientId: "1", date: "05-03-2027", diagnosis: "Allergic Rhinitis, Malaria",  dateOfVisitation: "05-03-2027", status: "Waiting"         },
-  { id: 2,  patientId: "1", date: "05-03-2027", diagnosis: "Typhoid Fever",               dateOfVisitation: "05-03-2027", status: "In Consultation" },
-  { id: 3,  patientId: "1", date: "05-03-2027", diagnosis: "Malaria",                     dateOfVisitation: "05-03-2027", status: "Completed"       },
-  { id: 4,  patientId: "1", date: "05-03-2027", diagnosis: "Hypertension",                dateOfVisitation: "05-03-2027", status: "Completed"       },
-  { id: 5,  patientId: "1", date: "05-03-2027", diagnosis: "Diabetes checkup",            dateOfVisitation: "05-03-2027", status: "Completed"       },
-];
-
-const DEPARTMENTS = ["Business Development", "Internal Control", "Clinic", "MTCE", "Finance", "IT"];
-const ITEMS_PER_PAGE   = 7;
-const RECORDS_PER_PAGE = 9;
+const DEPARTMENTS  = ["Business Development", "Internal Control", "Clinic", "MTCE", "Finance", "IT"];
+const ITEMS_PER_PAGE = 7;
 
 // ── Helpers ───────────────────────────────────────────────────
 function StatusBadge({ status }: { status: "active" | "inactive" }) {
@@ -75,13 +79,18 @@ function StatusBadge({ status }: { status: "active" | "inactive" }) {
   );
 }
 
-function RecordStatus({ status }: { status: MedicalRecord["status"] }) {
-  const styles = {
-    "Waiting":         "text-primary-500",
-    "In Consultation": "text-blue-500",
-    "Completed":       "text-green-600",
+function ConsultationStatus({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    completed:       "text-green-600",
+    in_consultation: "text-blue-500",
+    waiting:         "text-primary-500",
+    cancelled:       "text-red-400",
   };
-  return <span className={cn("text-sm font-medium", styles[status])}>{status}</span>;
+  return (
+    <span className={cn("text-sm font-medium capitalize", styles[status] ?? "text-slate-500")}>
+      {status.replace("_", " ")}
+    </span>
+  );
 }
 
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
@@ -110,26 +119,12 @@ const inputClass = (error?: string) => cn(
   error ? "border-red-400" : "border-slate-200"
 );
 
-function DashedLines({ count }: { count: number }) {
-  return (
-    <div className="flex flex-col gap-2 mt-3">
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="border-t border-dashed border-slate-200 w-full" />
-      ))}
-    </div>
-  );
-}
-
 // ── Patient Form ──────────────────────────────────────────────
 function PatientForm({
   title, initial, onClose, onSubmit, submitLabel, loading,
 }: {
-  title: string;
-  initial: Partial<Patient>;
-  onClose: () => void;
-  onSubmit: (data: any) => void;
-  submitLabel: string;
-  loading?: boolean;
+  title: string; initial: Partial<Patient>; onClose: () => void;
+  onSubmit: (data: any) => void; submitLabel: string; loading?: boolean;
 }) {
   const [form, setForm] = useState({
     fullName:    initial.fullName    ?? "",
@@ -248,13 +243,15 @@ function PatientForm({
 
 // ── Record Vitals Modal ───────────────────────────────────────
 function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: () => void }) {
-  const [form, setForm] = useState<Vitals>({
+  const [consultationId, setConsultationId] = useState<string | null>(null);
+  const [form, setForm]   = useState<Vitals>({
     bloodPressure: "", heartRate: "",
     temperature: "", height: patient.height.toString(), weight: patient.weight.toString(),
   });
   const [errors, setErrors]   = useState<Record<string, string>>({});
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [step, setStep]       = useState<"vitals" | "sending">("vitals");
 
   const set = (field: string, value: string) => {
     setForm((p) => ({ ...p, [field]: value }));
@@ -271,15 +268,78 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
     return e;
   };
 
+  // Step 1 — Check in patient + record vitals + send to doctor
   const handleSendToDoctor = async () => {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
+
     setLoading(true);
-    // Will connect to consultation vitals endpoint later
-    await new Promise((res) => setTimeout(res, 1000));
-    setLoading(false);
-    setSuccess(true);
-    setTimeout(() => onClose(), 2500);
+    try {
+      // 1. Check in patient
+      const checkInRes = await api.post<{
+        data: { consultation: { _id: string } };
+      }>("/v1/consultations/check-in", {
+        patientId: patient._id,
+        complaint: "Vitals recorded by nurse",
+      });
+
+      const newConsultationId = checkInRes.data.consultation._id;
+      setConsultationId(newConsultationId);
+
+      // 2. Record vitals
+      await api.patch(`/v1/consultations/${newConsultationId}/vitals`, {
+        bloodPressure: form.bloodPressure,
+        heartRate:     Number(form.heartRate),
+        temperature:   Number(form.temperature),
+        height:        Number(form.height),
+        weight:        Number(form.weight),
+      });
+
+      // 3. Send to doctor
+      await api.patch(`/v1/consultations/${newConsultationId}/send-to-doctor`, {});
+
+      setSuccess(true);
+      setTimeout(() => onClose(), 2500);
+
+    } catch (err: any) {
+      alert(err.message ?? "Failed to send to doctor");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Save vitals only (check in + record vitals but don't send to doctor)
+  const handleSaveVitals = async () => {
+    const e = validate();
+    if (Object.keys(e).length > 0) { setErrors(e); return; }
+
+    setLoading(true);
+    try {
+      // 1. Check in patient
+      const checkInRes = await api.post<{
+        data: { consultation: { _id: string } };
+      }>("/v1/consultations/check-in", {
+        patientId: patient._id,
+        complaint: "Vitals recorded by nurse",
+      });
+
+      const newConsultationId = checkInRes.data.consultation._id;
+
+      // 2. Record vitals only
+      await api.patch(`/v1/consultations/${newConsultationId}/vitals`, {
+        bloodPressure: form.bloodPressure,
+        heartRate:     Number(form.heartRate),
+        temperature:   Number(form.temperature),
+        height:        Number(form.height),
+        weight:        Number(form.weight),
+      });
+
+      onClose();
+    } catch (err: any) {
+      alert(err.message ?? "Failed to save vitals");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (success) {
@@ -309,20 +369,20 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
       </div>
       <div className="p-6 flex flex-col gap-5">
         <FormField label="Blood pressure (mm/hg)" error={errors.bloodPressure}>
-          <input className={inputClass(errors.bloodPressure)} value={form.bloodPressure} onChange={(e) => set("bloodPressure", e.target.value)} />
+          <input className={inputClass(errors.bloodPressure)} placeholder="e.g. 120/80" value={form.bloodPressure} onChange={(e) => set("bloodPressure", e.target.value)} />
         </FormField>
         <FormField label="Heart rate (bpm)" error={errors.heartRate}>
-          <input className={inputClass(errors.heartRate)} value={form.heartRate} onChange={(e) => set("heartRate", e.target.value)} />
+          <input className={inputClass(errors.heartRate)} placeholder="e.g. 72" type="number" value={form.heartRate} onChange={(e) => set("heartRate", e.target.value)} />
         </FormField>
-        <FormField label="Temperature (F)" error={errors.temperature}>
-          <input className={inputClass(errors.temperature)} value={form.temperature} onChange={(e) => set("temperature", e.target.value)} />
+        <FormField label="Temperature (°C)" error={errors.temperature}>
+          <input className={inputClass(errors.temperature)} placeholder="e.g. 37.5" type="number" value={form.temperature} onChange={(e) => set("temperature", e.target.value)} />
         </FormField>
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Height (cm)" error={errors.height}>
-            <input className={inputClass(errors.height)} value={form.height} onChange={(e) => set("height", e.target.value)} />
+            <input className={inputClass(errors.height)} type="number" value={form.height} onChange={(e) => set("height", e.target.value)} />
           </FormField>
           <FormField label="Weight (kg)" error={errors.weight}>
-            <input className={inputClass(errors.weight)} value={form.weight} onChange={(e) => set("weight", e.target.value)} />
+            <input className={inputClass(errors.weight)} type="number" value={form.weight} onChange={(e) => set("weight", e.target.value)} />
           </FormField>
         </div>
         <button
@@ -332,8 +392,12 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
         >
           {loading ? <><LoadingSpinner size="sm" /> Sending...</> : "Send to doctor"}
         </button>
-        <button onClick={onClose} className="w-full h-12 rounded-xl bg-primary-50 text-primary-500 font-semibold text-sm border border-primary-100 hover:bg-primary-100 transition-colors">
-          Save vitals
+        <button
+          onClick={handleSaveVitals}
+          disabled={loading}
+          className="w-full h-12 rounded-xl bg-primary-50 text-primary-500 font-semibold text-sm border border-primary-100 hover:bg-primary-100 transition-colors disabled:opacity-70"
+        >
+          Save vitals only
         </button>
       </div>
     </Modal>
@@ -344,15 +408,13 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
 function ActionDropdown({
   onView, onRecordVitals, onDelete, onClose,
 }: {
-  onView: () => void;
-  onRecordVitals: () => void;
-  onDelete: () => void;
-  onClose: () => void;
+  onView: () => void; onRecordVitals: () => void;
+  onDelete: () => void; onClose: () => void;
 }) {
   return (
     <>
       <div className="fixed inset-0 z-10" onClick={onClose} />
-      <div className="absolute right-8 z-20 bg-white rounded-xl shadow-card-lg border border-slate-100 py-1 w-40">
+      <div className="absolute right-8 z-20 bg-white rounded-xl shadow-lg border border-slate-100 py-1 w-40">
         <button onClick={onView} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
           <Eye size={15} className="text-slate-400" /> View
         </button>
@@ -371,9 +433,7 @@ function ActionDropdown({
 function MedicalRecordSlideOver({
   record, patient, onClose,
 }: {
-  record: MedicalRecord;
-  patient: Patient;
-  onClose: () => void;
+  record: Consultation; patient: Patient; onClose: () => void;
 }) {
   return (
     <>
@@ -386,51 +446,83 @@ function MedicalRecordSlideOver({
           <h2 className="text-xl font-bold text-slate-800 text-center mb-8">Medical Record</h2>
           <div className="flex justify-between mb-8">
             <div>
-              <p className="text-sm text-slate-500">Date: <span className="text-slate-700 font-medium">{record.date}</span></p>
-              <p className="text-sm text-slate-500 mt-1">Doctor: <span className="text-slate-700 font-medium">Olatunji Bolanle</span></p>
+              <p className="text-sm text-slate-500">
+                Date: <span className="text-slate-700 font-medium">
+                  {new Date(record.checkInTime).toLocaleDateString()}
+                </span>
+              </p>
+              <p className="text-sm text-slate-500 mt-1">
+                Doctor: <span className="text-slate-700 font-medium">
+                  {record.attendedBy?.fullName ?? "Not assigned"}
+                </span>
+              </p>
             </div>
             <div className="text-right">
-              <p className="text-sm text-slate-500">Age: <span className="text-slate-700 font-medium">{patient.age}</span></p>
-              <p className="text-sm text-slate-500 mt-1">Time: <span className="text-slate-700 font-medium">12:56pm</span></p>
+              <p className="text-sm text-slate-500">
+                Age: <span className="text-slate-700 font-medium">{patient.age}yrs</span>
+              </p>
+              <p className="text-sm text-slate-500 mt-1">
+                Time: <span className="text-slate-700 font-medium">
+                  {new Date(record.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </p>
             </div>
           </div>
+
+          {/* Vitals */}
+          {record.vitals && (
+            <div className="border border-slate-100 rounded-xl p-5 mb-4">
+              <h3 className="text-sm font-bold text-slate-700 mb-3">❤️ Vitals</h3>
+              <div className="grid grid-cols-5 gap-4">
+                {[
+                  { label: "Blood pressure", value: record.vitals.bloodPressure },
+                  { label: "Heart rate",     value: `${record.vitals.heartRate}bpm` },
+                  { label: "Temperature",    value: `${record.vitals.temperature}°C` },
+                  { label: "Height",         value: `${record.vitals.height}cm` },
+                  { label: "Weight",         value: `${record.vitals.weight}kg` },
+                ].map((v) => (
+                  <div key={v.label}>
+                    <p className="text-xs text-slate-400">{v.label}</p>
+                    <p className="text-sm font-semibold text-slate-700 mt-0.5">{v.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Complaint */}
           <div className="border border-slate-100 rounded-xl p-5 mb-4">
-            <h3 className="text-sm font-bold text-slate-700 mb-3">❤️ Vitals</h3>
-            <div className="grid grid-cols-5 gap-4">
-              {[
-                { label: "Blood pressure", value: "121/78mmhg"          },
-                { label: "Heart rate",     value: "56bpm"                },
-                { label: "Temperature",    value: "32.5 C"               },
-                { label: "Height",         value: `${patient.height}cm`  },
-                { label: "Weight",         value: `${patient.weight}kg`  },
-              ].map((v) => (
-                <div key={v.label}>
-                  <p className="text-xs text-slate-400">{v.label}</p>
-                  <p className="text-sm font-semibold text-slate-700 mt-0.5">{v.value}</p>
-                </div>
-              ))}
-            </div>
+            <h3 className="text-sm font-bold text-slate-700 mb-3">🧠 Symptoms</h3>
+            <p className="text-sm text-slate-600">{record.complaint || "—"}</p>
           </div>
+
+          {/* Diagnosis */}
           <div className="border border-slate-100 rounded-xl p-5 mb-4">
             <h3 className="text-sm font-bold text-slate-700 mb-3">🧠 Diagnosis</h3>
-            <p className="text-sm text-slate-600">{record.diagnosis}</p>
+            <p className="text-sm text-slate-600">{record.diagnosis || "—"}</p>
             <div className="flex items-center gap-2 mt-2">
               <span className="text-sm text-slate-500">Status:</span>
-              <RecordStatus status={record.status} />
+              <ConsultationStatus status={record.status} />
             </div>
-            <DashedLines count={5} />
           </div>
-          <div className="border border-slate-100 rounded-xl p-5 mb-4">
-            <h3 className="text-sm font-bold text-slate-700 mb-1">🧠 Symptoms</h3>
-            <DashedLines count={5} />
-          </div>
-          <div className="border border-slate-100 rounded-xl p-5 mb-4">
-            <h3 className="text-sm font-bold text-slate-700 mb-1">💊 Prescription</h3>
-            <DashedLines count={7} />
-          </div>
+
+          {/* Prescription */}
           <div className="border border-slate-100 rounded-xl p-5">
-            <h3 className="text-sm font-bold text-slate-700 mb-1">🩺 Doctor Notes</h3>
-            <DashedLines count={7} />
+            <h3 className="text-sm font-bold text-slate-700 mb-3">💊 Prescription</h3>
+            {record.prescriptions.length === 0 ? (
+              <p className="text-sm text-slate-400">No prescription recorded.</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {record.prescriptions.map((p) => (
+                  <div key={p._id} className="flex items-center gap-4 text-sm text-slate-600">
+                    <span className="font-medium">{p.medicationName}</span>
+                    <span>{p.dosage}</span>
+                    <span>{p.quantity} units</span>
+                    <span>{p.duration} days</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -442,36 +534,63 @@ function MedicalRecordSlideOver({
 function PatientDetailView({
   patient, onBack, onUpdatePatient, isDoctor,
 }: {
-  patient: Patient;
-  onBack: () => void;
+  patient:         Patient;
+  onBack:          () => void;
   onUpdatePatient: (updated: Patient) => void;
-  isDoctor: boolean;
+  isDoctor:        boolean;
 }) {
-  const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
-  const [showEditModal, setShowEditModal]   = useState(false);
-  const [showVitals, setShowVitals]         = useState(false);
-  const [recordPage, setRecordPage]         = useState(1);
-  const [saving, setSaving]                 = useState(false);
+  const navigate = useNavigate();
 
-  const patientRecords   = MOCK_MEDICAL_RECORDS.filter((r) => r.patientId === "1");
-  const totalRecordPages = Math.max(1, Math.ceil(patientRecords.length / RECORDS_PER_PAGE));
-  const paginatedRecords = patientRecords.slice(
+  const [selectedRecord, setSelectedRecord]   = useState<Consultation | null>(null);
+  const [showEditModal, setShowEditModal]     = useState(false);
+  const [showVitals, setShowVitals]           = useState(false);
+  const [saving, setSaving]                   = useState(false);
+  const [medicalRecords, setMedicalRecords]   = useState<Consultation[]>([]);
+  const [recordsLoading, setRecordsLoading]   = useState(true);
+  const [recordPage, setRecordPage]           = useState(1);
+  const [recordsTotalPages, setRecordsTotalPages] = useState(1);
+
+  // Fetch real medical history
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        setRecordsLoading(true);
+        const response = await api.get<{
+          data: {
+            consultations: Consultation[];
+            total:         number;
+            totalPages:    number;
+          };
+        }>(`/v1/patients/${patient._id}/history`);
+        setMedicalRecords(response.data.consultations ?? []);
+        setRecordsTotalPages(response.data.totalPages || 1);
+      } catch (err) {
+        console.error("Failed to fetch patient history");
+      } finally {
+        setRecordsLoading(false);
+      }
+    };
+    fetchHistory();
+  }, [patient._id]);
+
+  const RECORDS_PER_PAGE = 9;
+  const paginatedRecords = medicalRecords.slice(
     (recordPage - 1) * RECORDS_PER_PAGE,
     recordPage * RECORDS_PER_PAGE
   );
 
   const infoFields = [
-    { label: "Full name",     value: patient.fullName                },
-    { label: "Email address", value: patient.email                   },
-    { label: "Staff Number",  value: patient.staffNumber             },
-    { label: "Department",    value: patient.department              },
-    { label: "Gender",        value: patient.gender                  },
-    { label: "Age",           value: `${patient.age}yrs`             },
-    { label: "Phone-number",  value: patient.phoneNumber             },
-    { label: "Blood group",   value: patient.bloodGroup              },
-    { label: "Genotype",      value: patient.genotype                },
-    { label: "Weight",        value: `${patient.weight}kg`           },
-    { label: "Address",       value: patient.address                 },
+    { label: "Full name",     value: patient.fullName    },
+    { label: "Email address", value: patient.email       },
+    { label: "Staff Number",  value: patient.staffNumber },
+    { label: "Department",    value: patient.department  },
+    { label: "Gender",        value: patient.gender      },
+    { label: "Age",           value: `${patient.age}yrs` },
+    { label: "Phone-number",  value: patient.phoneNumber },
+    { label: "Blood group",   value: patient.bloodGroup  },
+    { label: "Genotype",      value: patient.genotype    },
+    { label: "Weight",        value: `${patient.weight}kg` },
+    { label: "Address",       value: patient.address     },
   ];
 
   const handleUpdate = async (data: any) => {
@@ -490,12 +609,18 @@ function PatientDetailView({
     }
   };
 
+  // Check if patient has active consultation
+  const activeConsultation = medicalRecords.find(
+    (r) => r.status === "in_consultation" || r.status === "waiting"
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <button onClick={onBack} className="flex items-center gap-2 text-primary-500 font-medium text-sm hover:underline w-fit">
         <ArrowLeft size={16} /> Back to patient list
       </button>
 
+      {/* Profile card */}
       <div className="bg-white rounded-2xl border border-slate-100 p-6">
         <div className="flex items-center gap-4 mb-6">
           <div className="w-16 h-16 rounded-full bg-primary-100 text-primary-500 font-bold flex items-center justify-center text-xl shrink-0">
@@ -510,6 +635,7 @@ function PatientDetailView({
             </button>
           )}
         </div>
+
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-5">
           {infoFields.map((field) => (
             <div key={field.label}>
@@ -518,22 +644,69 @@ function PatientDetailView({
             </div>
           ))}
         </div>
+
+        {/* Last consultation summary — doctor view */}
+        {isDoctor && medicalRecords.length > 0 && (
+          <div className="mt-6 p-4 bg-primary-50 rounded-xl border border-primary-100">
+            <p className="text-xs font-bold text-primary-500 uppercase tracking-wide mb-2">
+              Last Consultation
+            </p>
+            <p className="text-sm text-slate-700">
+              <span className="font-medium">Date:</span>{" "}
+              {new Date(medicalRecords[0].checkInTime).toLocaleDateString()}
+            </p>
+            <p className="text-sm text-slate-700 mt-1">
+              <span className="font-medium">Diagnosis:</span>{" "}
+              {medicalRecords[0].diagnosis || "Pending"}
+            </p>
+            <p className="text-sm text-slate-700 mt-1">
+              <span className="font-medium">Status:</span>{" "}
+              {medicalRecords[0].status.replace("_", " ")}
+            </p>
+          </div>
+        )}
+
+        {/* Start consultation button — doctor view, only if patient is in queue */}
+        {isDoctor && activeConsultation && (
+          <div className="mt-4">
+            <button
+              onClick={() => navigate("/doctor/consultation")}
+              className="flex items-center gap-2 h-10 px-6 rounded-lg bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors"
+            >
+              Start Consultation
+            </button>
+          </div>
+        )}
       </div>
 
+      {/* Medical Records */}
       <div className="bg-white rounded-2xl border border-slate-100 p-6">
         <h2 className="text-base font-bold text-slate-800 mb-5">Medical Records</h2>
-        {paginatedRecords.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-8">No medical records found.</p>
+
+        {recordsLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <LoadingSpinner size="md" />
+          </div>
+        ) : medicalRecords.length === 0 ? (
+          <p className="text-sm text-slate-400 text-center py-8">
+            No medical records found.
+          </p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {paginatedRecords.map((record) => (
-              <div key={record.id} className="border border-slate-100 rounded-xl p-4 hover:border-primary-200 transition-colors">
-                <p className="text-sm text-slate-600 mb-1">Date: {record.date}</p>
-                <p className="text-sm text-slate-600 mb-1">Diagnosis: {record.diagnosis}</p>
-                <p className="text-sm text-slate-600 mb-1">Date of visitation: {record.dateOfVisitation}</p>
+              <div key={record._id} className="border border-slate-100 rounded-xl p-4 hover:border-primary-200 transition-colors">
+                <p className="text-sm text-slate-600 mb-1">
+                  Date: {new Date(record.checkInTime).toLocaleDateString()}
+                </p>
+                <p className="text-sm text-slate-600 mb-1">
+                  Diagnosis: {record.diagnosis || "Pending"}
+                </p>
+                <p className="text-sm text-slate-600 mb-1">
+                  Complaint: {record.complaint}
+                </p>
                 <div className="flex items-center gap-1 mb-2">
                   <p className="text-sm text-slate-600">Status: </p>
-                  <RecordStatus status={record.status} />
+                  <ConsultationStatus status={record.status} />
                 </div>
                 <button
                   onClick={() => setSelectedRecord(record)}
@@ -546,6 +719,7 @@ function PatientDetailView({
           </div>
         )}
 
+        {/* Bottom bar */}
         <div className="flex items-center justify-between mt-6">
           {!isDoctor && (
             <button
@@ -555,17 +729,17 @@ function PatientDetailView({
               Record vitals
             </button>
           )}
-          {totalRecordPages > 1 && (
+          {recordsTotalPages > 1 && (
             <div className="flex items-center gap-2 ml-auto">
               <button onClick={() => setRecordPage((p) => Math.max(1, p - 1))} disabled={recordPage === 1} className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-500 disabled:opacity-40">
                 <ChevronLeft size={14} /> Previous
               </button>
-              {Array.from({ length: totalRecordPages }, (_, i) => i + 1).map((page) => (
+              {Array.from({ length: recordsTotalPages }, (_, i) => i + 1).map((page) => (
                 <button key={page} onClick={() => setRecordPage(page)} className={cn("w-8 h-8 rounded-lg text-sm font-medium transition-colors", page === recordPage ? "bg-primary-500 text-white" : "text-slate-500 hover:bg-slate-100")}>
                   {page}
                 </button>
               ))}
-              <button onClick={() => setRecordPage((p) => Math.min(totalRecordPages, p + 1))} disabled={recordPage === totalRecordPages} className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-500 disabled:opacity-40">
+              <button onClick={() => setRecordPage((p) => Math.min(recordsTotalPages, p + 1))} disabled={recordPage === recordsTotalPages} className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-500 disabled:opacity-40">
                 Next <ChevronRight size={14} />
               </button>
             </div>
@@ -573,6 +747,7 @@ function PatientDetailView({
         </div>
       </div>
 
+      {/* Modals */}
       {!isDoctor && showVitals    && <RecordVitalsModal patient={patient} onClose={() => setShowVitals(false)} />}
       {!isDoctor && showEditModal && (
         <PatientForm
@@ -615,7 +790,6 @@ export default function StaffsPage() {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [adding, setAdding]               = useState(false);
 
-  // ── Fetch patients ────────────────────────────────────────
   const fetchPatients = async () => {
     try {
       setLoading(true);
@@ -623,12 +797,11 @@ export default function StaffsPage() {
       const response = await api.get<{
         status: boolean;
         data: {
-          patients: Patient[];
-          total: number;
-          totalPages: number;
-          currentPage: number;
+          patients:    Patient[];
+          total:       number;
+          totalPages:  number;
         };
-      }>(`/v1/patients?page=${currentPage}&limit=${ITEMS_PER_PAGE}`);
+      }>("/v1/patients");
       setPatients(response.data.patients);
       setTotalPages(response.data.totalPages || 1);
     } catch (err: any) {
@@ -640,9 +813,6 @@ export default function StaffsPage() {
 
   useEffect(() => { fetchPatients(); }, []);
 
-  useEffect(() => { fetchPatients(); }, [currentPage]);
-
-  // ── Sort ──────────────────────────────────────────────────
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir((d) => d === "asc" ? "desc" : "asc");
     else { setSortField(field); setSortDir("asc"); }
@@ -650,7 +820,6 @@ export default function StaffsPage() {
 
   const handleClear = () => { setSortField(null); setSearch(""); };
 
-  // ── Filtered + sorted ─────────────────────────────────────
   const processed = useMemo(() => {
     let result = patients.filter((p) =>
       p.fullName.toLowerCase().includes(search.toLowerCase()) ||
@@ -666,7 +835,6 @@ export default function StaffsPage() {
     return result;
   }, [patients, search, sortField, sortDir]);
 
-  // ── Add patient ───────────────────────────────────────────
   const handleAdd = async (data: any) => {
     setAdding(true);
     try {
@@ -683,13 +851,11 @@ export default function StaffsPage() {
     }
   };
 
-  // ── Update patient ────────────────────────────────────────
   const handleUpdate = (updated: Patient) => {
     setPatients((prev) => prev.map((p) => p._id === updated._id ? updated : p));
     setSelectedPatient(updated);
   };
 
-  // ── Delete patient ────────────────────────────────────────
   const deleteSingle = async (id: string) => {
     try {
       await api.delete(`/v1/patients/${id}`);
@@ -697,13 +863,13 @@ export default function StaffsPage() {
       setOpenDropdown(null);
     } catch (err: any) {
       alert(err.message ?? "Failed to delete patient");
+      setOpenDropdown(null);
     }
   };
 
   const sortIndicator = (field: SortField) =>
     sortField === field ? (sortDir === "asc" ? " ↑" : " ↓") : null;
 
-  // ── Detail view ───────────────────────────────────────────
   if (view === "detail" && selectedPatient) {
     return (
       <PatientDetailView
@@ -715,14 +881,13 @@ export default function StaffsPage() {
     );
   }
 
-  // ── Loading / Error ───────────────────────────────────────
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <LoadingSpinner size="lg" />
     </div>
   );
 
-  if (error) return <ErrorState message={error} onRetry={() => fetchPatients()} />;
+  if (error) return <ErrorState message={error} onRetry={fetchPatients} />;
 
   return (
     <div className="flex flex-col gap-5">
@@ -735,7 +900,7 @@ export default function StaffsPage() {
             type="search"
             placeholder="Search patient name"
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+            onChange={(e) => setSearch(e.target.value)}
             className="w-full h-10 pl-10 pr-4 rounded-full border border-slate-200 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
           />
         </div>
@@ -757,7 +922,7 @@ export default function StaffsPage() {
         </div>
       </div>
 
-      {/* Action buttons — nurse/admin only */}
+      {/* Action buttons — nurse only */}
       {!isDoctor && (
         <div className="flex items-center gap-3">
           <button
@@ -828,7 +993,7 @@ export default function StaffsPage() {
 
         {/* Pagination */}
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100">
-          <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-500 hover:text-slate-700 disabled:opacity-40">
+          <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-500 disabled:opacity-40">
             <ChevronLeft size={14} /> Previous
           </button>
           {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
@@ -836,7 +1001,7 @@ export default function StaffsPage() {
               {page}
             </button>
           ))}
-          <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-500 hover:text-slate-700 disabled:opacity-40">
+          <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-500 disabled:opacity-40">
             Next <ChevronRight size={14} />
           </button>
         </div>

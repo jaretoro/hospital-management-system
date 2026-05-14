@@ -314,34 +314,33 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* ── Summary bar (hidden when printing) ────────────────── */}
-      <div className="rounded-2xl border border-primary-200 bg-primary-50/30 px-8 py-5 print:hidden">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <span className="text-sm text-slate-600">
-              <span className="font-semibold text-slate-800">Report period:</span>{" "}
-              {periodLabel}
-            </span>
-          </div>
-          <div className="h-6 w-px bg-primary-200 hidden md:block" />
-          <div>
-            <span className="text-sm text-slate-600">
-              <span className="font-semibold text-slate-800">Total diagnoses:</span>{" "}
-              {summary.totalDiagnoses} different types
-            </span>
-          </div>
-          <div className="h-6 w-px bg-primary-200 hidden md:block" />
-          <div>
-            <span className="text-sm text-slate-600">
-              <span className="font-semibold text-slate-800">
-                Total patients treated {periodLabel.toLowerCase()}:
-              </span>{" "}
-              {summary.totalPatients} patients
-            </span>
-          </div>
-        </div>
-      </div>
-
+   {/* ── Summary bar ────────────────────────────────────────── */}
+<div className="rounded-2xl border border-primary-200 bg-primary-50/30 px-8 py-5 print:hidden">
+  <div className="flex items-center justify-between flex-wrap gap-4">
+    <div>
+      <span className="text-sm text-slate-600">
+        <span className="font-semibold text-slate-800">Report period:</span>{" "}
+        {periodLabel}
+      </span>
     </div>
+    <div className="h-6 w-px bg-primary-200 hidden md:block" />
+    <div>
+      <span className="text-sm text-slate-600">
+        <span className="font-semibold text-slate-800">Total diagnoses:</span>{" "}
+        {summary.totalDiagnoses} different types
+      </span>
+    </div>
+    <div className="h-6 w-px bg-primary-200 hidden md:block" />
+    <div>
+      <span className="text-sm text-slate-600">
+        <span className="font-semibold text-slate-800">
+          Total patients treated {periodLabel.toLowerCase()}:
+        </span>{" "}
+        {summary.totalPatients} patients
+      </span>
+    </div>
+  </div>
+</div>
+</div>
   );
 }

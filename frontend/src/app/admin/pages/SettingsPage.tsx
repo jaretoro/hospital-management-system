@@ -3,14 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { clearAuth } from "@/lib/auth";
-// ── Toggle Component ──────────────────────────────────────────
-function Toggle({
-  enabled,
-  onToggle,
-}: {
-  enabled: boolean;
-  onToggle: () => void;
-}) {
+
+// ── Toggle ────────────────────────────────────────────────────
+function Toggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
   return (
     <button
       onClick={onToggle}
@@ -19,25 +14,17 @@ function Toggle({
         enabled ? "bg-primary-500" : "bg-slate-200"
       )}
     >
-      <span
-        className={cn(
-          "absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200",
-          enabled ? "translate-x-6" : "translate-x-0.5"
-        )}
-      />
+      <span className={cn(
+        "absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200",
+        enabled ? "translate-x-6" : "translate-x-0.5"
+      )} />
     </button>
   );
 }
 
 // ── Section Header ────────────────────────────────────────────
-function SectionHeader({
-  icon,
-  title,
-  subtitle,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
+function SectionHeader({ icon, title, subtitle }: {
+  icon: React.ReactNode; title: string; subtitle: string;
 }) {
   return (
     <div className="flex items-start gap-3 mb-6">
@@ -52,17 +39,10 @@ function SectionHeader({
 
 // ── Password Input ────────────────────────────────────────────
 function PasswordInput({
-  label,
-  value,
-  onChange,
-  placeholder,
-  error,
+  label, value, onChange, placeholder, error,
 }: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  error?: string;
+  label: string; value: string; onChange: (v: string) => void;
+  placeholder?: string; error?: string;
 }) {
   const [show, setShow] = useState(false);
   return (
@@ -76,8 +56,7 @@ function PasswordInput({
           placeholder={placeholder ?? "Enter"}
           className={cn(
             "w-full h-12 px-4 pr-12 rounded-xl border text-sm text-slate-700",
-            "placeholder:text-slate-300 focus:outline-none focus:ring-2",
-            "focus:ring-primary-400 transition-colors",
+            "placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-colors",
             error ? "border-red-400" : "border-slate-200"
           )}
         />
@@ -98,7 +77,7 @@ function PasswordInput({
 export default function SettingsPage() {
   const navigate = useNavigate();
 
-  // ── Notification toggles ──────────────────────────────────
+  // ── Notifications ─────────────────────────────────────────
   const [notifications, setNotifications] = useState({
     email:        true,
     inApp:        false,
@@ -110,12 +89,8 @@ export default function SettingsPage() {
     setNotifications((p) => ({ ...p, [key]: !p[key] }));
   };
 
-  // ── Password form ─────────────────────────────────────────
-  const [passwords, setPasswords] = useState({
-    current:  "",
-    newPw:    "",
-    confirm:  "",
-  });
+  // ── Password ──────────────────────────────────────────────
+  const [passwords, setPasswords] = useState({ current: "", newPw: "", confirm: "" });
   const [pwErrors, setPwErrors]   = useState<Record<string, string>>({});
   const [pwSuccess, setPwSuccess] = useState(false);
 
@@ -138,38 +113,25 @@ export default function SettingsPage() {
   const handleSavePassword = () => {
     const e = validatePassword();
     if (Object.keys(e).length > 0) { setPwErrors(e); return; }
-    // Backend will handle actual password change
     setPwSuccess(true);
     setPasswords({ current: "", newPw: "", confirm: "" });
   };
 
-  // ── Log out ───────────────────────────────────────────────
-  const handleLogout = () => {
+  // ── Logout ────────────────────────────────────────────────
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  const handleLogout = () => setShowLogoutConfirm(true);
+
+  const confirmLogout = () => {
     clearAuth();
     navigate("/login");
   };
 
   const NOTIFICATION_ITEMS = [
-    {
-      key:      "email" as const,
-      title:    "Email notification",
-      subtitle: "Receive notification via email",
-    },
-    {
-      key:      "inApp" as const,
-      title:    "In-app notification",
-      subtitle: "Receive in app push notification",
-    },
-    {
-      key:      "lowStock" as const,
-      title:    "Low stock alerts",
-      subtitle: "Get notified when medication stock is low",
-    },
-    {
-      key:      "consultation" as const,
-      title:    "Consultation alerts",
-      subtitle: "Receive updates on consultation status changes",
-    },
+    { key: "email"        as const, title: "Email notification",   subtitle: "Receive notification via email"                 },
+    { key: "inApp"        as const, title: "In-app notification",  subtitle: "Receive in app push notification"               },
+    { key: "lowStock"     as const, title: "Low stock alerts",     subtitle: "Get notified when medication stock is low"      },
+    { key: "consultation" as const, title: "Consultation alerts",  subtitle: "Receive updates on consultation status changes" },
   ];
 
   return (
@@ -187,13 +149,9 @@ export default function SettingsPage() {
           title="Notification settings"
           subtitle="Manage how you receive notifications"
         />
-
         <div className="flex flex-col divide-y divide-slate-50">
           {NOTIFICATION_ITEMS.map((item) => (
-            <div
-              key={item.key}
-              className="flex items-center justify-between py-5 first:pt-0 last:pb-0"
-            >
+            <div key={item.key} className="flex items-center justify-between py-5 first:pt-0 last:pb-0">
               <div>
                 <p className="text-sm font-semibold text-slate-800">{item.title}</p>
                 <p className="text-sm text-slate-400 mt-0.5">{item.subtitle}</p>
@@ -219,12 +177,8 @@ export default function SettingsPage() {
           title="Security"
           subtitle="Manage your account security"
         />
-
         <div className="border border-slate-100 rounded-xl p-5">
-          <p className="text-sm font-semibold text-slate-700 mb-5">
-            Change password
-          </p>
-
+          <p className="text-sm font-semibold text-slate-700 mb-5">Change password</p>
           <div className="flex flex-col gap-4">
             <PasswordInput
               label="Current password"
@@ -247,13 +201,11 @@ export default function SettingsPage() {
               placeholder="Enter"
               error={pwErrors.confirm}
             />
-
             {pwSuccess && (
               <p className="text-sm text-green-600 font-medium">
                 ✅ Password updated successfully!
               </p>
             )}
-
             <button
               onClick={handleSavePassword}
               className="w-full h-12 rounded-xl bg-primary-500 text-white font-semibold text-sm hover:bg-primary-600 transition-colors mt-2"
@@ -277,7 +229,6 @@ export default function SettingsPage() {
           title="Log out"
           subtitle="End your session securely"
         />
-
         <button
           onClick={handleLogout}
           className="w-40 h-12 rounded-xl bg-red-500 text-white font-semibold text-sm hover:bg-red-600 transition-colors"
@@ -285,6 +236,40 @@ export default function SettingsPage() {
           Log out
         </button>
       </div>
+
+      {/* ── Logout Confirmation Modal ──────────────────────── */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowLogoutConfirm(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 z-10 p-8 flex flex-col items-center text-center gap-6">
+            <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="#ef4444" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                <polyline points="16 17 21 12 16 7" stroke="#ef4444" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                <line x1="21" y1="12" x2="9" y2="12" stroke="#ef4444" strokeWidth="1.8" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-800 mb-2">Log out?</h2>
+              <p className="text-sm text-slate-500">Are you sure you want to end your session?</p>
+            </div>
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 h-12 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmLogout}
+                className="flex-1 h-12 rounded-xl bg-red-500 text-white font-semibold text-sm hover:bg-red-600 transition-colors"
+              >
+                Log out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

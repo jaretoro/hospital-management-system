@@ -4,7 +4,7 @@ import { getUser } from "@/lib/auth";
 
 interface TopbarProps {
   sidebarCollapsed: boolean;
-  pageTitle: string;
+  pageTitle:        string;
 }
 
 export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
@@ -12,18 +12,27 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
   const location = useLocation();
   const isDoctor = location.pathname.startsWith("/doctor");
 
-  // Get real user from localStorage
+  // ── Real logged in user ───────────────────────────────────
   const user     = getUser();
   const userName = user?.name ?? "User";
-  const userRole = user?.role === "doctor" 
-  ? "Doctor" 
-  : user?.role === "nurse"
-  ? "Clinic manager"
-  : "Admin";
-  const initials = userName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+  const userRole = user?.role === "doctor"
+    ? "Doctor"
+    : user?.role === "nurse"
+    ? "Clinic manager"
+    : "Admin";
+  const initials = userName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   const handleBellClick = () => {
     navigate(isDoctor ? "/doctor/notifications" : "/admin/notifications");
+  };
+
+  const handleProfileClick = () => {
+    navigate(isDoctor ? "/doctor/profile" : "/admin/profile");
   };
 
   return (
@@ -52,17 +61,23 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
 
       {/* Right side */}
       <div className="flex items-center gap-3 ml-auto shrink-0">
-        {/* Bell */}
+
+        {/* Bell with unread count */}
         <button
           onClick={handleBellClick}
           className="relative w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center hover:bg-slate-50 text-slate-600 transition-colors"
         >
           <Bell size={18} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 border-2 border-white" />
+          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center border-2 border-white">
+            3
+          </span>
         </button>
 
-        {/* User profile */}
-        <button className="flex items-center gap-2.5 px-2 py-1.5 rounded-full border border-slate-200 hover:bg-slate-50 transition-colors">
+        {/* User profile — clicks to profile page */}
+        <button
+          onClick={handleProfileClick}
+          className="flex items-center gap-2.5 px-2 py-1.5 rounded-full border border-slate-200 hover:bg-slate-50 transition-colors"
+        >
           <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-600 shrink-0 flex items-center justify-center text-xs font-bold">
             {initials}
           </div>

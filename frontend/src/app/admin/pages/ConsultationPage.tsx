@@ -120,7 +120,7 @@ function ConsultationDetailView({
             </p>
             <p className="text-sm text-slate-500 mt-1">
               Time: <span className="font-medium text-slate-700">
-                {new Date(consultation.checkInTime).toLocaleTimeString()}
+              {new Date(consultation.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </p>
           </div>

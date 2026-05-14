@@ -272,8 +272,7 @@ function EditMedicationModal({
       else if (Number(form.reduceQuantity) > medication.quantity)
         e.reduceQuantity = `Cannot reduce more than current stock (${medication.quantity})`;
     }
-    if ((form.addQuantity || form.reduceQuantity) && !form.reason.trim())
-      e.reason = "Please provide a reason for the stock change";
+
     return e;
   };
 
@@ -368,15 +367,7 @@ function EditMedicationModal({
           </div>
         )}
 
-        {/* Reason */}
-        <FormField label="Reason for change" error={errors.reason}>
-          <input
-            className={inputClass(errors.reason)}
-            placeholder="e.g. Restocking, Dispensed to patient"
-            value={form.reason}
-            onChange={(e) => set("reason", e.target.value)}
-          />
-        </FormField>
+       
 
         {/* Expiry date */}
         <FormField label="Expiry date" error={errors.expiryDate}>
@@ -530,7 +521,17 @@ export default function MedicationsPage() {
       setMedications((p) => p.filter((m) => m._id !== id));
       setOpenDropdown(null);
     } catch (err: any) {
-      alert(err.message ?? "Failed to delete medication");
+      if (
+        err.message?.toLowerCase().includes("remaining stock") ||
+        err.message?.toLowerCase().includes("stock")
+      ) {
+        alert(
+          "Cannot delete this medication because it still has stock remaining.\n\nPlease reduce the quantity to 0 first using the Edit button."
+        );
+      } else {
+        alert(err.message ?? "Failed to delete medication");
+      }
+      setOpenDropdown(null);
     }
   };
 
