@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, Pill,
   FileBarChart2, Stethoscope, UserCircle,
-  Settings, LogOut,
+  Settings, LogOut, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { clearAuth } from "@/lib/auth";
@@ -69,8 +69,8 @@ export function Sidebar({ collapsed, onToggle, role }: SidebarProps) {
       )}>
         {/* Logo */}
         <div className={cn(
-          "flex items-center px-6 h-topbar-h shrink-0",
-          collapsed && "justify-center px-2"
+          "flex items-center h-topbar-h shrink-0 gap-2",
+          collapsed ? "justify-center px-2" : "justify-between px-6"
         )}>
           {collapsed ? (
             <span className="font-bold text-primary-500 text-lg">S</span>
@@ -80,6 +80,14 @@ export function Sidebar({ collapsed, onToggle, role }: SidebarProps) {
               <span className="text-primary-500">Med</span>
             </span>
           )}
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors shrink-0"
+          >
+            {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          </button>
         </div>
 
         {/* Nav */}
