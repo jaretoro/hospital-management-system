@@ -76,14 +76,88 @@ function PatientAvatar({ name }: { name: string }) {
   );
 }
 
+// ── Confirm Modal ─────────────────────────────────────────────
+function ConfirmModal({
+  title,
+  message,
+  confirmLabel,
+  confirmClass,
+  loading,
+  onConfirm,
+  onClose,
+}: {
+  title:        string;
+  message:      string;
+  confirmLabel: string;
+  confirmClass: string;
+  loading:      boolean;
+  onConfirm:    () => void;
+  onClose:      () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 z-10 p-8 flex flex-col gap-5">
+        <div>
+          <h3 className="text-base font-bold text-slate-800 mb-1">{title}</h3>
+          <p className="text-sm text-slate-500">{message}</p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1 h-11 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
+          >
+            No, go back
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className={cn(
+              "flex-1 h-11 rounded-xl text-white text-sm font-semibold transition-colors disabled:opacity-70 flex items-center justify-center gap-2",
+              confirmClass
+            )}
+          >
+            {loading ? <><LoadingSpinner size="sm" /> Working...</> : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Consultation Detail View ──────────────────────────────────
 function ConsultationDetailView({
-  consultation,
+  consultation: initial,
   onBack,
 }: {
   consultation: Consultation;
   onBack: () => void;
 }) {
+  const [consultation, setConsultation] = useState<Consultation>(initial);
+  const [fetching, setFetching]         = useState(true);
+
+  // Always fetch fresh data so nurse sees latest doctor updates
+  useEffect(() => {
+    api.get<{ data: { consultation: Consultation } }>(`/v1/consultations/${initial._id}`)
+      .then((res) => setConsultation(res.data.consultation))
+      .catch(() => {})
+      .finally(() => setFetching(false));
+  }, [initial._id]);
+
+  if (fetching) {
+    return (
+      <div className="flex flex-col gap-6">
+        <button onClick={onBack} className="flex items-center gap-2 text-primary-500 font-medium text-sm hover:underline w-fit">
+          <ArrowLeft size={16} /> Go back
+        </button>
+        <div className="flex items-center justify-center h-64">
+          <LoadingSpinner size="lg" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <button
@@ -202,6 +276,11 @@ export default function ConsultationPage() {
   const [currentPage, setCurrentPage]     = useState(1);
   const [totalPages, setTotalPages]       = useState(1);
 
+  // Action states
+  const [cancelTarget,    setCancelTarget]    = useState<Consultation | null>(null);
+  const [administerTarget, setAdministerTarget] = useState<Consultation | null>(null);
+  const [actionLoading,   setActionLoading]   = useState(false);
+
   const fetchConsultations = async () => {
     try {
       setLoading(true);
@@ -224,6 +303,39 @@ export default function ConsultationPage() {
   };
 
   useEffect(() => { fetchConsultations(); }, [currentPage]);
+
+  // ── Cancel ─────────────────────────────────────────────────
+  const handleCancel = async () => {
+    if (!cancelTarget) return;
+    setActionLoading(true);
+    try {
+      await api.patch(`/v1/consultations/${cancelTarget._id}/cancel`, {});
+      setConsultations((prev) =>
+        prev.map((c) => c._id === cancelTarget._id ? { ...c, status: "cancelled" } : c)
+      );
+      setCancelTarget(null);
+    } catch (err: any) {
+      alert(err.message ?? "Failed to cancel consultation");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // ── Administer ─────────────────────────────────────────────
+  const handleAdminister = async () => {
+    if (!administerTarget) return;
+    setActionLoading(true);
+    try {
+      await api.patch(`/v1/consultations/${administerTarget._id}/administer`, {});
+      // Remove from list — medication has been dispensed, consultation is fully done
+      setConsultations((prev) => prev.filter((c) => c._id !== administerTarget._id));
+      setAdministerTarget(null);
+    } catch (err: any) {
+      alert(err.message ?? "Failed to administer medication");
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   if (view === "detail" && selected) {
     return (
@@ -275,12 +387,35 @@ export default function ConsultationPage() {
                   <td className="px-6 py-4 text-sm text-slate-500">{c.department}</td>
                   <td className="px-6 py-4"><StatusBadge status={c.status} /></td>
                   <td className="px-6 py-4">
-                    <button
-                      onClick={() => { setSelected(c); setView("detail"); }}
-                      className="text-sm font-medium text-slate-700 hover:text-primary-500 transition-colors"
-                    >
-                      View
-                    </button>
+                    <div className="flex items-center gap-3">
+                      {/* View — always available */}
+                      <button
+                        onClick={() => { setSelected(c); setView("detail"); }}
+                        className="text-sm font-medium text-slate-700 hover:text-primary-500 transition-colors"
+                      >
+                        View
+                      </button>
+
+                      {/* Administer — completed consultations with prescriptions */}
+                      {c.status === "completed" && c.prescriptions.length > 0 && (
+                        <button
+                          onClick={() => setAdministerTarget(c)}
+                          className="h-8 px-4 rounded-lg bg-green-500 text-white text-xs font-semibold hover:bg-green-600 transition-colors"
+                        >
+                          Administer
+                        </button>
+                      )}
+
+                      {/* Cancel — only for active consultations */}
+                      {(c.status === "waiting" || c.status === "in_consultation") && (
+                        <button
+                          onClick={() => setCancelTarget(c)}
+                          className="h-8 px-4 rounded-lg border border-red-200 text-red-500 text-xs font-semibold hover:bg-red-50 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))
@@ -318,6 +453,32 @@ export default function ConsultationPage() {
           </button>
         </div>
       </div>
+
+      {/* Cancel Confirm Modal */}
+      {cancelTarget && (
+        <ConfirmModal
+          title="Cancel consultation?"
+          message={`Are you sure you want to cancel ${cancelTarget.patientName}'s consultation? This cannot be undone.`}
+          confirmLabel="Yes, cancel it"
+          confirmClass="bg-red-500 hover:bg-red-600"
+          loading={actionLoading}
+          onConfirm={handleCancel}
+          onClose={() => setCancelTarget(null)}
+        />
+      )}
+
+      {/* Administer Confirm Modal */}
+      {administerTarget && (
+        <ConfirmModal
+          title="Administer medication?"
+          message={`Confirm that medication has been administered to ${administerTarget.patientName}. This will deduct the prescribed quantities from stock.`}
+          confirmLabel="Yes, administer"
+          confirmClass="bg-green-500 hover:bg-green-600"
+          loading={actionLoading}
+          onConfirm={handleAdminister}
+          onClose={() => setAdministerTarget(null)}
+        />
+      )}
     </div>
   );
 }

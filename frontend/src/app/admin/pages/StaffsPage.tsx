@@ -242,64 +242,83 @@ function PatientForm({
 }
 
 // ── Record Vitals Modal ───────────────────────────────────────
-// ── Record Vitals Modal ───────────────────────────────────────
 function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: () => void }) {
   const [form, setForm]   = useState<Vitals>({
     bloodPressure: "", heartRate: "",
     temperature: "", height: patient.height.toString(), weight: patient.weight.toString(),
   });
-  const [errors, setErrors]   = useState<Record<string, string>>({});
-  const [success, setSuccess] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [complaint, setComplaint]           = useState("");
+  const [errors, setErrors]                 = useState<Record<string, string>>({});
+  const [successState, setSuccessState]     = useState<"sent" | "saved" | null>(null);
+  const [loading, setLoading]               = useState(false);
+  const [initLoading, setInitLoading]       = useState(true);
+  // Existing active consultation found on open — reuse it instead of creating new
+  const [existingConsultationId, setExistingConsultationId] = useState<string | null>(null);
+  const [vitalsAlreadySaved, setVitalsAlreadySaved]         = useState(false);
+
+  // On open, check for an existing waiting consultation with vitals already saved
+  useEffect(() => {
+    const checkExisting = async () => {
+      try {
+        const res = await api.get<{
+          data: { consultations: { _id: string; status: string; patient: any; complaint: string; vitals?: any }[] };
+        }>("/v1/consultations");
+
+        const active = res.data.consultations.find((c) => {
+          const patientId = typeof c.patient === "object" ? c.patient._id : c.patient;
+          return patientId === patient._id && (c.status === "waiting" || c.status === "in_consultation");
+        });
+
+        if (active) {
+          setExistingConsultationId(active._id);
+          setComplaint(active.complaint ?? "");
+          if (active.vitals) {
+            setForm({
+              bloodPressure: active.vitals.bloodPressure ?? "",
+              heartRate:     active.vitals.heartRate?.toString() ?? "",
+              temperature:   active.vitals.temperature?.toString() ?? "",
+              height:        active.vitals.height?.toString() ?? patient.height.toString(),
+              weight:        active.vitals.weight?.toString() ?? patient.weight.toString(),
+            });
+            setVitalsAlreadySaved(true);
+          }
+        }
+      } catch {
+        // silently ignore — fall back to blank form
+      } finally {
+        setInitLoading(false);
+      }
+    };
+    checkExisting();
+  }, [patient._id]);
 
   const set = (field: string, value: string) => {
     setForm((p) => ({ ...p, [field]: value }));
     setErrors((p) => ({ ...p, [field]: "" }));
   };
 
-  const validate = () => {
+  const validate = (requireComplaint = false) => {
     const e: Record<string, string> = {};
     if (!form.bloodPressure.trim()) e.bloodPressure = "Required";
     if (!form.heartRate.trim())     e.heartRate     = "Required";
     if (!form.temperature.trim())   e.temperature   = "Required";
     if (!form.height.trim())        e.height        = "Required";
     if (!form.weight.trim())        e.weight        = "Required";
+    if (requireComplaint && !complaint.trim()) e.complaint = "Complaint is required to send to doctor";
     return e;
   };
 
-  // ── Check if patient already has active consultation ────────
-  const getOrCreateConsultation = async (): Promise<string> => {
-    try {
-      const existing = await api.get<{
-        data: { consultations: { _id: string; status: string; patient: any }[] };
-      }>("/v1/consultations");
-
-      const activeConsultation = existing.data.consultations.find((c) => {
-        const patientId = typeof c.patient === "object"
-          ? c.patient._id
-          : c.patient;
-        return (
-          patientId === patient._id &&
-          (c.status === "waiting" || c.status === "in_consultation")
-        );
-      });
-
-      if (activeConsultation) return activeConsultation._id;
-    } catch {
-      // If check fails just create new one
-    }
-
-    // No active consultation found — create new one
+  const getOrCreateConsultation = async (complaintText: string): Promise<string> => {
+    if (existingConsultationId) return existingConsultationId;
     const response = await api.post<{
       data: { consultation: { _id: string } };
     }>("/v1/consultations/check-in", {
       patientId: patient._id,
-      complaint: "",
+      complaint: complaintText,
     });
     return response.data.consultation._id;
   };
 
-  // ── Record vitals helper ─────────────────────────────────────
   const recordVitals = async (consultationId: string) => {
     await api.patch(`/v1/consultations/${consultationId}/vitals`, {
       bloodPressure: form.bloodPressure,
@@ -312,15 +331,15 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
 
   // ── Send to doctor ───────────────────────────────────────────
   const handleSendToDoctor = async () => {
-    const e = validate();
+    const e = validate(true);
     if (Object.keys(e).length > 0) { setErrors(e); return; }
 
     setLoading(true);
     try {
-      const consultationId = await getOrCreateConsultation();
+      const consultationId = await getOrCreateConsultation(complaint);
       await recordVitals(consultationId);
       await api.patch(`/v1/consultations/${consultationId}/send-to-doctor`, {});
-      setSuccess(true);
+      setSuccessState("sent");
       setTimeout(() => onClose(), 2500);
     } catch (err: any) {
       alert(err.message ?? "Failed to send to doctor");
@@ -331,14 +350,16 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
 
   // ── Save vitals only ─────────────────────────────────────────
   const handleSaveVitals = async () => {
-    const e = validate();
+    const e = validate(false);
     if (Object.keys(e).length > 0) { setErrors(e); return; }
 
     setLoading(true);
     try {
-      const consultationId = await getOrCreateConsultation();
+      const consultationId = await getOrCreateConsultation(complaint);
       await recordVitals(consultationId);
-      onClose();
+      setExistingConsultationId(consultationId);
+      setVitalsAlreadySaved(true);
+      setSuccessState("saved");
     } catch (err: any) {
       alert(err.message ?? "Failed to save vitals");
     } finally {
@@ -346,7 +367,7 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
     }
   };
 
-  if (success) {
+  if (successState === "sent") {
     return (
       <Modal onClose={onClose}>
         <div className="p-12 flex flex-col items-center justify-center gap-6 text-center">
@@ -363,6 +384,39 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
     );
   }
 
+  if (successState === "saved") {
+    return (
+      <Modal onClose={onClose}>
+        <div className="p-12 flex flex-col items-center justify-center gap-6 text-center">
+          <div className="w-24 h-24 bg-green-500 rounded-[40%] rotate-12 flex items-center justify-center">
+            <svg className="-rotate-12" width="40" height="40" viewBox="0 0 24 24" fill="none">
+              <path d="M5 13l4 4L19 7" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <p className="text-slate-700 font-medium text-base max-w-xs">
+            Vitals saved. You can send to doctor later from this patient's record.
+          </p>
+          <button
+            onClick={onClose}
+            className="w-full h-12 rounded-xl bg-primary-500 text-white font-semibold text-sm hover:bg-primary-600 transition-colors"
+          >
+            Done
+          </button>
+        </div>
+      </Modal>
+    );
+  }
+
+  if (initLoading) {
+    return (
+      <Modal onClose={onClose}>
+        <div className="p-12 flex items-center justify-center">
+          <LoadingSpinner size="lg" />
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal onClose={onClose}>
       <div className="flex items-center justify-between p-6 border-b border-slate-100">
@@ -372,6 +426,32 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
         </button>
       </div>
       <div className="p-6 flex flex-col gap-5">
+        {vitalsAlreadySaved && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-green-50 border border-green-100 rounded-xl text-sm text-green-700">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="shrink-0">
+              <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Vitals already saved — review and send to doctor when ready.
+          </div>
+        )}
+
+        {/* Complaint */}
+        <FormField label="Complaint / Symptoms" error={errors.complaint}>
+          <textarea
+            rows={3}
+            placeholder="What is the patient complaining about?"
+            value={complaint}
+            onChange={(e) => { setComplaint(e.target.value); setErrors((p) => ({ ...p, complaint: "" })); }}
+            className={cn(
+              "w-full px-4 py-3 rounded-xl border text-sm text-slate-700 placeholder:text-slate-300",
+              "focus:outline-none focus:ring-2 focus:ring-primary-400 transition-colors resize-none",
+              errors.complaint ? "border-red-400" : "border-slate-200"
+            )}
+          />
+        </FormField>
+
+        <div className="border-t border-slate-100 pt-1" />
+
         <FormField label="Blood pressure (mm/hg)" error={errors.bloodPressure}>
           <input className={inputClass(errors.bloodPressure)} placeholder="e.g. 120/80" value={form.bloodPressure} onChange={(e) => set("bloodPressure", e.target.value)} />
         </FormField>

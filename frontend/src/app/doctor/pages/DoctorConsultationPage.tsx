@@ -88,6 +88,56 @@ function PatientAvatar({ name }: { name: string }) {
   );
 }
 
+// ── Confirm Modal ─────────────────────────────────────────────
+function ConfirmModal({
+  title,
+  message,
+  confirmLabel,
+  confirmClass,
+  loading,
+  onConfirm,
+  onClose,
+}: {
+  title:        string;
+  message:      string;
+  confirmLabel: string;
+  confirmClass: string;
+  loading:      boolean;
+  onConfirm:    () => void;
+  onClose:      () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 z-10 p-8 flex flex-col gap-5">
+        <div>
+          <h3 className="text-base font-bold text-slate-800 mb-1">{title}</h3>
+          <p className="text-sm text-slate-500">{message}</p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1 h-11 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
+          >
+            No, go back
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className={cn(
+              "flex-1 h-11 rounded-xl text-white text-sm font-semibold transition-colors disabled:opacity-70 flex items-center justify-center gap-2",
+              confirmClass
+            )}
+          >
+            {loading ? <><LoadingSpinner size="sm" /> Working...</> : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Success Modal ─────────────────────────────────────────────
 function SuccessState({ onClose }: { onClose: () => void }) {
   return (
@@ -241,9 +291,7 @@ function MedicalRecordEdit({
 
   const validate = () => {
     const e: Record<string, string> = {};
-    // Only diagnosis is required
     if (!diagnosis.trim()) e.diagnosis = "Diagnosis is required";
-    // Prescription lines only validated if medication is selected
     prescription.forEach((item) => {
       if (item.medication && !item.quantity)  e[`qty_${item.id}`] = "Enter quantity";
       if (item.medication && !item.dosage)    e[`dos_${item.id}`] = "Enter dosage";
@@ -500,6 +548,10 @@ export default function DoctorConsultationPage() {
   const [currentPage, setCurrentPage]     = useState(1);
   const [totalPages, setTotalPages]       = useState(1);
 
+  // Cancel state
+  const [cancelTarget,  setCancelTarget]  = useState<Consultation | null>(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
+
   const fetchConsultations = async () => {
     try {
       setLoading(true);
@@ -523,12 +575,27 @@ export default function DoctorConsultationPage() {
 
   useEffect(() => { fetchConsultations(); }, []);
 
-  const handleComplete = () => {
-    setTimeout(() => {
-      fetchConsultations();
-    }, 500);
+  const handleComplete = async () => {
     setView("list");
     setSelected(null);
+    await fetchConsultations();
+  };
+
+  // ── Cancel ─────────────────────────────────────────────────
+  const handleCancel = async () => {
+    if (!cancelTarget) return;
+    setCancelLoading(true);
+    try {
+      await api.patch(`/v1/consultations/${cancelTarget._id}/cancel`, {});
+      setConsultations((prev) =>
+        prev.map((c) => c._id === cancelTarget._id ? { ...c, status: "cancelled" } : c)
+      );
+      setCancelTarget(null);
+    } catch (err: any) {
+      alert(err.message ?? "Failed to cancel consultation");
+    } finally {
+      setCancelLoading(false);
+    }
   };
 
   if (view === "edit" && selected) {
@@ -579,6 +646,7 @@ export default function DoctorConsultationPage() {
                 </td>
               </tr>
             ) : (
+              // TODO: filter to only waiting/in_consultation for a cleaner doctor view — requires backend filter param or client-side filter toggle
               consultations.map((c) => (
                 <tr key={c._id} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors">
                   <td className="px-6 py-4">
@@ -591,21 +659,40 @@ export default function DoctorConsultationPage() {
                   <td className="px-6 py-4 text-sm text-slate-500">{c.department}</td>
                   <td className="px-6 py-4"><StatusBadge status={c.status} /></td>
                   <td className="px-6 py-4">
-                    {c.status === "completed" || c.status === "cancelled" ? (
-                      <button
-                        onClick={() => { setSelected(c); setView("view"); }}
-                        className="text-sm font-medium text-slate-700 hover:text-primary-500 transition-colors"
-                      >
-                        View
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => { setSelected(c); setView("edit"); }}
-                        className="h-8 px-5 rounded-lg bg-primary-500 text-white text-xs font-semibold hover:bg-primary-600 transition-colors"
-                      >
-                        Start
-                      </button>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {c.status === "completed" || c.status === "cancelled" ? (
+                        <button
+                          onClick={() => { setSelected(c); setView("view"); }}
+                          className="text-sm font-medium text-slate-700 hover:text-primary-500 transition-colors"
+                        >
+                          View
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => {
+                              // Optimistically mark as in_consultation so other doctors see it's taken
+                              setConsultations((prev) =>
+                                prev.map((item) =>
+                                  item._id === c._id ? { ...item, status: "in_consultation" } : item
+                                )
+                              );
+                              setSelected({ ...c, status: "in_consultation" });
+                              setView("edit");
+                            }}
+                            className="h-8 px-5 rounded-lg bg-primary-500 text-white text-xs font-semibold hover:bg-primary-600 transition-colors"
+                          >
+                            Start
+                          </button>
+                          <button
+                            onClick={() => setCancelTarget(c)}
+                            className="h-8 px-4 rounded-lg border border-red-200 text-red-500 text-xs font-semibold hover:bg-red-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))
@@ -643,6 +730,19 @@ export default function DoctorConsultationPage() {
           </button>
         </div>
       </div>
+
+      {/* Cancel Confirm Modal */}
+      {cancelTarget && (
+        <ConfirmModal
+          title="Cancel consultation?"
+          message={`Are you sure you want to cancel ${cancelTarget.patientName}'s consultation? This cannot be undone.`}
+          confirmLabel="Yes, cancel it"
+          confirmClass="bg-red-500 hover:bg-red-600"
+          loading={cancelLoading}
+          onConfirm={handleCancel}
+          onClose={() => setCancelTarget(null)}
+        />
+      )}
     </div>
   );
 }
