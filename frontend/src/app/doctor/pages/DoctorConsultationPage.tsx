@@ -323,6 +323,8 @@ function MedicalRecordEdit({
           notes:          p.notes,
         })),
       });
+      // Mark consultation as completed after saving diagnosis
+      await api.patch(`/v1/consultations/${consultation._id}/complete`, {});
       setShowSuccess(true);
     } catch (err: any) {
       setErrors({ diagnosis: err.message ?? "Failed to complete consultation" });
@@ -552,9 +554,9 @@ export default function DoctorConsultationPage() {
   const [cancelTarget,  setCancelTarget]  = useState<Consultation | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
 
-  const fetchConsultations = async () => {
+  const fetchConsultations = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       const response = await api.get<{
         status: boolean;
@@ -567,13 +569,17 @@ export default function DoctorConsultationPage() {
       setConsultations(response.data.consultations);
       setTotalPages(response.data.totalPages || 1);
     } catch (err: any) {
-      setError(err.message ?? "Failed to load consultations");
+      if (!silent) setError(err.message ?? "Failed to load consultations");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
-  useEffect(() => { fetchConsultations(); }, []);
+  useEffect(() => {
+    fetchConsultations();
+    const interval = setInterval(() => fetchConsultations(true), 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleComplete = async () => {
     setView("list");

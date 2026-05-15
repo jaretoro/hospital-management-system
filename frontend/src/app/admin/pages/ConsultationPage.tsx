@@ -281,9 +281,9 @@ export default function ConsultationPage() {
   const [administerTarget, setAdministerTarget] = useState<Consultation | null>(null);
   const [actionLoading,   setActionLoading]   = useState(false);
 
-  const fetchConsultations = async () => {
+  const fetchConsultations = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       const response = await api.get<{
         status: boolean;
@@ -296,13 +296,17 @@ export default function ConsultationPage() {
       setConsultations(response.data.consultations);
       setTotalPages(response.data.totalPages || 1);
     } catch (err: any) {
-      setError(err.message ?? "Failed to load consultations");
+      if (!silent) setError(err.message ?? "Failed to load consultations");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
-  useEffect(() => { fetchConsultations(); }, [currentPage]);
+  useEffect(() => {
+    fetchConsultations();
+    const interval = setInterval(() => fetchConsultations(true), 15000);
+    return () => clearInterval(interval);
+  }, [currentPage]);
 
   // ── Cancel ─────────────────────────────────────────────────
   const handleCancel = async () => {
