@@ -556,15 +556,15 @@ export default function DoctorConsultationPage() {
     try {
       if (!silent) setLoading(true);
       setError(null);
-      const today = new Date().toISOString().split("T")[0];
-      // Fetch today's waiting and in_consultation separately — backend only accepts one status at a time
+      // Fetch waiting and in_consultation separately — backend accepts one status at a time
+      // No date filter — doctor needs to see all active patients regardless of check-in day
       // TODO: add a tab/toggle so doctor can also view their past completed consultations
       const [waitingRes, inConsultRes] = await Promise.all([
         api.get<{ status: boolean; data: { consultations: Consultation[]; total: number; totalPages: number } }>(
-          `/v1/consultations?date=${today}&status=waiting`
+          `/v1/consultations?status=waiting&limit=100`
         ),
         api.get<{ status: boolean; data: { consultations: Consultation[]; total: number; totalPages: number } }>(
-          `/v1/consultations?date=${today}&status=in_consultation`
+          `/v1/consultations?status=in_consultation&limit=100`
         ),
       ]);
       const merged = [
