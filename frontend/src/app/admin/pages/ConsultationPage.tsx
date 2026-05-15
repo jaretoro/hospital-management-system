@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { getUser } from "@/lib/auth";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { ErrorState } from "@/components/ui/ErrorState";
 
@@ -285,6 +286,7 @@ export default function ConsultationPage() {
     try {
       if (!silent) setLoading(true);
       setError(null);
+      const today = new Date().toISOString().split("T")[0];
       const response = await api.get<{
         status: boolean;
         data: {
@@ -292,7 +294,7 @@ export default function ConsultationPage() {
           total:         number;
           totalPages:    number;
         };
-      }>(`/v1/consultations?page=${currentPage}&limit=${ITEMS_PER_PAGE}`);
+      }>(`/v1/consultations?page=${currentPage}&limit=${ITEMS_PER_PAGE}&date=${today}`);
       setConsultations(response.data.consultations);
       setTotalPages(response.data.totalPages || 1);
     } catch (err: any) {
@@ -328,9 +330,11 @@ export default function ConsultationPage() {
   // ── Administer ─────────────────────────────────────────────
   const handleAdminister = async () => {
     if (!administerTarget) return;
+    const user = getUser();
+    if (!user) { alert("Session expired. Please log in again."); return; }
     setActionLoading(true);
     try {
-      await api.patch(`/v1/consultations/${administerTarget._id}/administer`, {});
+      await api.patch(`/v1/consultations/${administerTarget._id}/administer`, { userId: user.id });
       // Remove from list — medication has been dispensed, consultation is fully done
       setConsultations((prev) => prev.filter((c) => c._id !== administerTarget._id));
       setAdministerTarget(null);

@@ -262,9 +262,9 @@ function MedicalRecordEdit({
   const [loading,          setLoading]          = useState(false);
   const [errors,           setErrors]           = useState<Record<string, string>>({});
 
-  // Fetch available medications
+  // Fetch all available in-stock medications for prescription
   useEffect(() => {
-    api.get<{ data: { medications: Medication[] } }>("/v1/medications")
+    api.get<{ data: { medications: Medication[] } }>("/v1/medications?limit=100&status=in_stock")
       .then((res) => setMedications(res.data.medications))
       .catch(() => {});
   }, []);
@@ -556,14 +556,22 @@ export default function DoctorConsultationPage() {
     try {
       if (!silent) setLoading(true);
       setError(null);
-      const response = await api.get<{
-        status: boolean;
-        data: {
-          consultations: Consultation[];
-          total:         number;
-          totalPages:    number;
-        };
-      }>("/v1/consultations");
+      const today = new Date().toISOString().split("T")[0];
+      // Fetch today's waiting and in_consultation separately — backend only accepts one status at a time
+      // TODO: add a tab/toggle so doctor can also view their past completed consultations
+      const [waitingRes, inConsultRes] = await Promise.all([
+        api.get<{ status: boolean; data: { consultations: Consultation[]; total: number; totalPages: number } }>(
+          `/v1/consultations?date=${today}&status=waiting`
+        ),
+        api.get<{ status: boolean; data: { consultations: Consultation[]; total: number; totalPages: number } }>(
+          `/v1/consultations?date=${today}&status=in_consultation`
+        ),
+      ]);
+      const merged = [
+        ...waitingRes.data.consultations,
+        ...inConsultRes.data.consultations,
+      ];
+      const response = { data: { consultations: merged, totalPages: 1, total: merged.length } };
       setConsultations(response.data.consultations);
       setTotalPages(response.data.totalPages || 1);
     } catch (err: any) {
