@@ -323,8 +323,6 @@ function MedicalRecordEdit({
           notes:          p.notes,
         })),
       });
-      // Mark consultation as completed after saving diagnosis
-      await api.patch(`/v1/consultations/${consultation._id}/complete`, {});
       setShowSuccess(true);
     } catch (err: any) {
       setErrors({ diagnosis: err.message ?? "Failed to complete consultation" });

@@ -400,8 +400,8 @@ export default function ConsultationPage() {
                         View
                       </button>
 
-                      {/* Administer — completed consultations with prescriptions */}
-                      {c.status === "completed" && c.prescriptions.length > 0 && (
+                      {/* Administer — after doctor has diagnosed (backend keeps in_consultation status until administer) */}
+                      {(c.status === "completed" || c.status === "in_consultation") && c.prescriptions.length > 0 && (
                         <button
                           onClick={() => setAdministerTarget(c)}
                           className="h-8 px-4 rounded-lg bg-green-500 text-white text-xs font-semibold hover:bg-green-600 transition-colors"
@@ -410,8 +410,8 @@ export default function ConsultationPage() {
                         </button>
                       )}
 
-                      {/* Cancel — only for active consultations */}
-                      {(c.status === "waiting" || c.status === "in_consultation") && (
+                      {/* Cancel — only when doctor hasn't diagnosed yet */}
+                      {(c.status === "waiting" || (c.status === "in_consultation" && c.prescriptions.length === 0)) && (
                         <button
                           onClick={() => setCancelTarget(c)}
                           className="h-8 px-4 rounded-lg border border-red-200 text-red-500 text-xs font-semibold hover:bg-red-50 transition-colors"
