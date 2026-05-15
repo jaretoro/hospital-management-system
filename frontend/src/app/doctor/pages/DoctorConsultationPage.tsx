@@ -556,24 +556,16 @@ export default function DoctorConsultationPage() {
     try {
       if (!silent) setLoading(true);
       setError(null);
-      // Fetch waiting and in_consultation separately — backend accepts one status at a time
-      // No date filter — doctor needs to see all active patients regardless of check-in day
+      // Backend status filter is broken — fetch all and filter client-side
       // TODO: add a tab/toggle so doctor can also view their past completed consultations
-      const [waitingRes, inConsultRes] = await Promise.all([
-        api.get<{ status: boolean; data: { consultations: Consultation[]; total: number; totalPages: number } }>(
-          `/v1/consultations?status=waiting&limit=100`
-        ),
-        api.get<{ status: boolean; data: { consultations: Consultation[]; total: number; totalPages: number } }>(
-          `/v1/consultations?status=in_consultation&limit=100`
-        ),
-      ]);
-      const merged = [
-        ...waitingRes.data.consultations,
-        ...inConsultRes.data.consultations,
-      ];
-      const response = { data: { consultations: merged, totalPages: 1, total: merged.length } };
-      setConsultations(response.data.consultations);
-      setTotalPages(response.data.totalPages || 1);
+      const res = await api.get<{ status: boolean; data: { consultations: Consultation[]; total: number; totalPages: number } }>(
+        `/v1/consultations?limit=100`
+      );
+      const active = res.data.consultations.filter(
+        (c) => c.status === "waiting" || c.status === "in_consultation"
+      );
+      setConsultations(active);
+      setTotalPages(1);
     } catch (err: any) {
       if (!silent) setError(err.message ?? "Failed to load consultations");
     } finally {
