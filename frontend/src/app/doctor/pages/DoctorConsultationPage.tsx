@@ -15,7 +15,6 @@ interface Consultation {
   complaint:   string;
   diagnosis?:  string;
   diagnosisNotes?: string;
-  checkInTime: string;
   vitals?: {
     bloodPressure: string;
     heartRate:     number;
