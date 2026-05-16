@@ -144,7 +144,7 @@ function NotificationIcon({ type }: { type: string }) {
 function StatCard({
   title, value, linkText, icon, to,
 }: {
-  title: string; value: string; linkText: string;
+  title: string; value: React.ReactNode; linkText: string;
   icon: React.ReactNode; to: string;
 }) {
   const navigate = useNavigate();
@@ -234,7 +234,6 @@ export default function DashboardPage() {
   const [totalMeds,       setTotalMeds]       = useState<number | null>(null);
   const [stockMeds,       setStockMeds]       = useState<Medication[]>([]);
   const [queue,           setQueue]           = useState<Consultation[]>([]);
-  const [statsLoading,    setStatsLoading]    = useState(true);
   const [stockLoading,    setStockLoading]    = useState(true);
   const [queueLoading,    setQueueLoading]    = useState(true);
 
@@ -254,8 +253,6 @@ export default function DashboardPage() {
         setTotalPatients(0);
         setTotalMeds(0);
         setSeenToday(0);
-      } finally {
-        setStatsLoading(false);
       }
     };
 
@@ -309,21 +306,21 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <StatCard
             title="Total Patients"
-            value={statsLoading ? "—" : String(totalPatients ?? 0)}
+            value={statValue(totalPatients)}
             linkText="Manage your Patients"
             icon={<StaffIcon />}
             to="/admin/staffs"
           />
           <StatCard
             title="Patients seen today"
-            value={statsLoading ? "—" : String(seenToday ?? 0)}
+            value={statValue(seenToday)}
             linkText="View consultations"
             icon={<StaffIcon />}
             to="/admin/consultation"
           />
           <StatCard
             title="Total Medications"
-            value={statsLoading ? "—" : String(totalMeds ?? 0)}
+            value={statValue(totalMeds)}
             linkText="Manage medications"
             icon={<MedIcon />}
             to="/admin/medications"
