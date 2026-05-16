@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AreaChart, Area, XAxis, YAxis,
@@ -15,9 +15,11 @@ import {
 } from "date-fns";
 import { cn } from "@/lib/utils";
 import { getUser } from "@/lib/auth";
+import { api } from "@/lib/api";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import stethoscope from "@/assets/images/stethoscope.png";
 
-// ── Mock Data ─────────────────────────────────────────────────
+// ── Mock Data (chart + notifications — reports API not ready) ─
 const CHART_DATA = [
   { day: "Monday",    value: 20 },
   { day: "Tuesday",   value: 35 },
@@ -35,20 +37,6 @@ const MONTHLY_DATA = [
   { day: "Week 4", value: 80 },
 ];
 
-const PATIENT_QUEUE = [
-  { id: 1, name: "Glory Nwosu",     staffNumber: "SAH-0001", status: "In consultation" },
-  { id: 2, name: "Glory Nwosu",     staffNumber: "SAH-0001", status: "Waiting"         },
-  { id: 3, name: "Elizabeth Asojo", staffNumber: "SAH-3567", status: "Waiting"         },
-  { id: 4, name: "John Okafor",     staffNumber: "SAH-3568", status: "Waiting"         },
-];
-
-const RECENT_CONSULTATIONS = [
-  { id: 1, name: "Glory Nwosu",     staffNumber: "SAH-0001", timeAgo: "30 mins ago" },
-  { id: 2, name: "Elizabeth Asojo", staffNumber: "SAH-3567", timeAgo: "1 hour ago"  },
-  { id: 3, name: "John Okafor",     staffNumber: "SAH-3568", timeAgo: "Yesterday"   },
-  { id: 4, name: "Amaka Obi",       staffNumber: "SAH-3569", timeAgo: "Yesterday"   },
-];
-
 const NOTIFICATIONS = [
   { id: 1, title: "New consultation",   timeAgo: "10mins ago" },
   { id: 2, title: "Stock alert",        timeAgo: "10mins ago" },
@@ -56,6 +44,15 @@ const NOTIFICATIONS = [
   { id: 4, title: "New consultation",   timeAgo: "10mins ago" },
   { id: 5, title: "New consultation",   timeAgo: "10mins ago" },
 ];
+
+// ── Types ─────────────────────────────────────────────────────
+interface Consultation {
+  _id:         string;
+  patientName: string;
+  staffNumber: string;
+  status:      "waiting" | "in_consultation" | "completed" | "cancelled";
+  checkInTime: string;
+}
 
 // ── Helpers ───────────────────────────────────────────────────
 function getGreeting(name: string): string {
@@ -164,9 +161,63 @@ export default function DoctorDashboardPage() {
   const [period, setPeriod] = useState<"Weekly" | "Monthly">("Weekly");
   const chartData = period === "Weekly" ? CHART_DATA : MONTHLY_DATA;
 
-  // ── Get real logged in user ───────────────────────────────
   const user     = getUser();
   const greeting = getGreeting(user?.name ?? "Doctor");
+
+  // ── Real data ─────────────────────────────────────────────
+  const [queue,           setQueue]           = useState<Consultation[]>([]);
+  const [recentDone,      setRecentDone]      = useState<Consultation[]>([]);
+  const [queueLoading,    setQueueLoading]    = useState(true);
+  const [recentLoading,   setRecentLoading]   = useState(true);
+
+  useEffect(() => {
+    // Active patient queue
+    const fetchQueue = async () => {
+      try {
+        const res = await api.get<{ data: { consultations: Consultation[] } }>(
+          "/v1/consultations?limit=100"
+        );
+        const active = (res.data.consultations ?? []).filter(
+          (c) => c.status === "waiting" || c.status === "in_consultation"
+        );
+        setQueue(active.slice(0, 4));
+      } catch {
+        setQueue([]);
+      } finally {
+        setQueueLoading(false);
+      }
+    };
+
+    // Recent completed consultations
+    const fetchRecent = async () => {
+      try {
+        const res = await api.get<{ data: { consultations: Consultation[] } }>(
+          "/v1/consultations?limit=100"
+        );
+        const completed = (res.data.consultations ?? []).filter(
+          (c) => c.status === "completed"
+        );
+        setRecentDone(completed.slice(0, 4));
+      } catch {
+        setRecentDone([]);
+      } finally {
+        setRecentLoading(false);
+      }
+    };
+
+    fetchQueue();
+    fetchRecent();
+  }, []);
+
+  const timeAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins  = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days  = Math.floor(diff / 86400000);
+    if (mins < 60)  return `${mins} min${mins !== 1 ? "s" : ""} ago`;
+    if (hours < 24) return `${hours} hour${hours !== 1 ? "s" : ""} ago`;
+    return `${days} day${days !== 1 ? "s" : ""} ago`;
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -176,12 +227,8 @@ export default function DoctorDashboardPage() {
         <div className="flex-1 bg-white rounded-2xl border border-slate-100 p-8 flex items-center justify-between">
           <div className="flex flex-col gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-primary-500">
-                {greeting}
-              </h1>
-              <p className="text-sm text-slate-500 mt-1">
-                Here's your schedule for today
-              </p>
+              <h1 className="text-2xl font-bold text-primary-500">{greeting}</h1>
+              <p className="text-sm text-slate-500 mt-1">Here's your schedule for today</p>
             </div>
             <button
               onClick={() => navigate("/doctor/consultation")}
@@ -232,10 +279,16 @@ export default function DoctorDashboardPage() {
           </ResponsiveContainer>
         </div>
 
+        {/* Notifications — mock until backend delivers */}
         <div className="w-72 shrink-0 bg-white rounded-2xl border border-slate-100 p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-bold text-slate-800">Notifications</h2>
-            <button className="text-sm text-primary-500 font-medium hover:underline">Show more</button>
+            <button
+              onClick={() => navigate("/doctor/notifications")}
+              className="text-sm text-primary-500 font-medium hover:underline"
+            >
+              Show more
+            </button>
           </div>
           <div className="flex flex-col gap-1">
             {NOTIFICATIONS.map((notif) => (
@@ -256,6 +309,7 @@ export default function DoctorDashboardPage() {
       {/* ── Row 3: Patient queue + Recent consultations ─────── */}
       <div className="grid grid-cols-2 gap-6">
 
+        {/* Patient queue — real */}
         <div className="bg-white rounded-2xl border border-slate-100 p-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-base font-bold text-slate-800">Patient queue</h2>
@@ -266,44 +320,63 @@ export default function DoctorDashboardPage() {
               Show more
             </button>
           </div>
-          <div className="flex flex-col gap-3">
-            {PATIENT_QUEUE.map((patient) => (
-              <div key={patient.id} className="flex items-center gap-3">
-                <StaffAvatar name={patient.name} />
-                <span className="text-sm font-medium text-slate-700 w-28 shrink-0 truncate">
-                  {patient.name}
-                </span>
-                <span className="text-sm text-slate-400 shrink-0">{patient.staffNumber}</span>
-                <div className="flex-1 flex justify-end items-center gap-2">
-                  <QueueStatusBadge status={patient.status} />
-                  <button
-                    onClick={() => navigate("/doctor/consultation")}
-                    className="h-8 px-4 rounded-lg bg-primary-500 text-white text-xs font-semibold hover:bg-primary-600 transition-colors shrink-0"
-                  >
-                    Start
-                  </button>
+          {queueLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <LoadingSpinner size="md" />
+            </div>
+          ) : queue.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-6">No active patients in queue.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {queue.map((patient) => (
+                <div key={patient._id} className="flex items-center gap-3">
+                  <StaffAvatar name={patient.patientName} />
+                  <span className="text-sm font-medium text-slate-700 w-28 shrink-0 truncate">
+                    {patient.patientName}
+                  </span>
+                  <span className="text-sm text-slate-400 shrink-0">{patient.staffNumber}</span>
+                  <div className="flex-1 flex justify-end items-center gap-2">
+                    <QueueStatusBadge status={
+                      patient.status === "in_consultation" ? "In consultation" : "Waiting"
+                    } />
+                    <button
+                      onClick={() => navigate("/doctor/consultation")}
+                      className="h-8 px-4 rounded-lg bg-primary-500 text-white text-xs font-semibold hover:bg-primary-600 transition-colors shrink-0"
+                    >
+                      Start
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
+        {/* Recent consultations — real */}
         <div className="bg-white rounded-2xl border border-slate-100 p-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-base font-bold text-slate-800">Recent consultation</h2>
           </div>
-          <div className="flex flex-col gap-3">
-            {RECENT_CONSULTATIONS.map((item) => (
-              <div key={item.id} className="flex items-center gap-3">
-                <StaffAvatar name={item.name} />
-                <span className="text-sm font-medium text-slate-700 w-28 shrink-0 truncate">
-                  {item.name}
-                </span>
-                <span className="text-sm text-slate-400 shrink-0">{item.staffNumber}</span>
-                <span className="text-sm text-slate-400 ml-auto shrink-0">{item.timeAgo}</span>
-              </div>
-            ))}
-          </div>
+          {recentLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <LoadingSpinner size="md" />
+            </div>
+          ) : recentDone.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-6">No completed consultations yet.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {recentDone.map((item) => (
+                <div key={item._id} className="flex items-center gap-3">
+                  <StaffAvatar name={item.patientName} />
+                  <span className="text-sm font-medium text-slate-700 w-28 shrink-0 truncate">
+                    {item.patientName}
+                  </span>
+                  <span className="text-sm text-slate-400 shrink-0">{item.staffNumber}</span>
+                  <span className="text-sm text-slate-400 ml-auto shrink-0">{timeAgo(item.checkInTime)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
       </div>

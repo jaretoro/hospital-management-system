@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AreaChart, Area, XAxis, YAxis,
@@ -13,8 +13,10 @@ import {
   addMonths, subMonths, isToday,
 } from "date-fns";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
-// ── Mock Data ─────────────────────────────────────────────────
+// ── Mock Data (chart only — reports API not ready) ────────────
 const CHART_DATA = [
   { day: "Monday",    value: 20 },
   { day: "Tuesday",   value: 35 },
@@ -32,15 +34,6 @@ const MONTHLY_DATA = [
   { day: "Week 4", value: 80 },
 ];
 
-const STOCK_ALERTS = [
-  { name: "Cefuroxime",      units: "150 pieces", status: "Low"    },
-  { name: "Arthrocare forte",units: "150 pieces", status: "Normal" },
-  { name: "Ampiclox",        units: "150 pieces", status: "Low"    },
-  { name: "Amatem soft gel", units: "150 pieces", status: "Normal" },
-  { name: "Diclofenac",      units: "150 pieces", status: "Low"    },
-  { name: "Omeprazole",      units: "150 pieces", status: "Normal" },
-];
-
 const NOTIFICATIONS = [
   { id: 1, title: "New consultation",   timeAgo: "10mins ago" },
   { id: 2, title: "Stock alert",        timeAgo: "10mins ago" },
@@ -48,12 +41,20 @@ const NOTIFICATIONS = [
   { id: 4, title: "Medication restock", timeAgo: "10mins ago" },
 ];
 
-const PATIENT_QUEUE = [
-  { id: 1, name: "Glory Nwosu", staffNumber: "SAH-0001", status: "In consultation" },
-  { id: 2, name: "Glory Nwosu", staffNumber: "SAH-0001", status: "Waiting"         },
-  { id: 3, name: "Glory Nwosu", staffNumber: "SAH-0001", status: "Waiting"         },
-  { id: 4, name: "Glory Nwosu", staffNumber: "SAH-0001", status: "Waiting"         },
-];
+// ── Types ─────────────────────────────────────────────────────
+interface Medication {
+  _id:      string;
+  name:     string;
+  quantity: number;
+  status:   "in_stock" | "low_stock" | "out_of_stock";
+}
+
+interface Consultation {
+  _id:         string;
+  patientName: string;
+  staffNumber: string;
+  status:      "waiting" | "in_consultation" | "completed" | "cancelled";
+}
 
 // ── Helpers ───────────────────────────────────────────────────
 function PatientAvatar({ name }: { name: string }) {
@@ -227,6 +228,77 @@ export default function DashboardPage() {
   const [period, setPeriod] = useState<"Weekly" | "Monthly">("Weekly");
   const chartData = period === "Weekly" ? CHART_DATA : MONTHLY_DATA;
 
+  // ── Real data ─────────────────────────────────────────────
+  const [totalPatients,   setTotalPatients]   = useState<number | null>(null);
+  const [seenToday,       setSeenToday]       = useState<number | null>(null);
+  const [totalMeds,       setTotalMeds]       = useState<number | null>(null);
+  const [stockMeds,       setStockMeds]       = useState<Medication[]>([]);
+  const [queue,           setQueue]           = useState<Consultation[]>([]);
+  const [statsLoading,    setStatsLoading]    = useState(true);
+  const [stockLoading,    setStockLoading]    = useState(true);
+  const [queueLoading,    setQueueLoading]    = useState(true);
+
+  useEffect(() => {
+    // Total patients + seen today
+    const fetchStats = async () => {
+      try {
+        const [patientsRes, medsRes, reportRes] = await Promise.all([
+          api.get<{ data: { total: number } }>("/v1/patients?limit=1"),
+          api.get<{ data: { total: number } }>("/v1/medications?limit=1"),
+          api.get<{ data: { patientsSeenToday?: number } }>("/api/reports/dashboard").catch(() => ({ data: { patientsSeenToday: 0 } })),
+        ]);
+        setTotalPatients(patientsRes.data.total ?? 0);
+        setTotalMeds(medsRes.data.total ?? 0);
+        setSeenToday(reportRes.data.patientsSeenToday ?? 0);
+      } catch {
+        setTotalPatients(0);
+        setTotalMeds(0);
+        setSeenToday(0);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+
+    // Low/out of stock medications
+    const fetchStock = async () => {
+      try {
+        const res = await api.get<{ data: { medications: Medication[] } }>(
+          "/v1/medications?limit=10&sortBy=quantity"
+        );
+        // Show all, sorted by quantity ascending so low stock appears first
+        setStockMeds(res.data.medications ?? []);
+      } catch {
+        setStockMeds([]);
+      } finally {
+        setStockLoading(false);
+      }
+    };
+
+    // Today's active patient queue
+    const fetchQueue = async () => {
+      try {
+        const res = await api.get<{ data: { consultations: Consultation[] } }>(
+          "/v1/consultations?limit=100"
+        );
+        const active = (res.data.consultations ?? []).filter(
+          (c) => c.status === "waiting" || c.status === "in_consultation"
+        );
+        setQueue(active.slice(0, 5));
+      } catch {
+        setQueue([]);
+      } finally {
+        setQueueLoading(false);
+      }
+    };
+
+    fetchStats();
+    fetchStock();
+    fetchQueue();
+  }, []);
+
+  const statValue = (val: number | null) =>
+    val === null ? <LoadingSpinner size="sm" /> : String(val);
+
   return (
     <div className="flex gap-6">
 
@@ -237,21 +309,21 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <StatCard
             title="Total Patients"
-            value="450"
+            value={statsLoading ? "—" : String(totalPatients ?? 0)}
             linkText="Manage your Patients"
             icon={<StaffIcon />}
             to="/admin/staffs"
           />
           <StatCard
             title="Patients seen today"
-            value="50"
-            linkText="Manage your staffs"
+            value={statsLoading ? "—" : String(seenToday ?? 0)}
+            linkText="View consultations"
             icon={<StaffIcon />}
-            to="/admin/staffs"
+            to="/admin/consultation"
           />
           <StatCard
             title="Total Medications"
-            value="450"
+            value={statsLoading ? "—" : String(totalMeds ?? 0)}
             linkText="Manage medications"
             icon={<MedIcon />}
             to="/admin/medications"
@@ -295,34 +367,46 @@ export default function DashboardPage() {
         {/* Stock Alert */}
         <div className="bg-white rounded-2xl border border-slate-100 p-6">
           <h2 className="text-base font-bold text-slate-800 mb-4">Stock alert</h2>
-          <table className="w-full">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 rounded-l-lg">Medications</th>
-                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">Units Remaining</th>
-                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 rounded-r-lg">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {STOCK_ALERTS.map((item, i) => (
-                <tr key={i} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-primary-50 flex items-center justify-center shrink-0">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                          <circle cx="12" cy="12" r="8" stroke="#FF7221" strokeWidth="2"/>
-                          <line x1="9" y1="12" x2="15" y2="12" stroke="#FF7221" strokeWidth="2" strokeLinecap="round"/>
-                        </svg>
-                      </div>
-                      <span className="text-sm text-slate-700">{item.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-500">{item.units}</td>
-                  <td className="px-4 py-3"><StockStatusBadge status={item.status} /></td>
+          {stockLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <LoadingSpinner size="md" />
+            </div>
+          ) : stockMeds.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-8">No medications found.</p>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100">
+                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 rounded-l-lg">Medications</th>
+                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">Units Remaining</th>
+                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 rounded-r-lg">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {stockMeds.map((item) => (
+                  <tr key={item._id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-primary-50 flex items-center justify-center shrink-0">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="8" stroke="#FF7221" strokeWidth="2"/>
+                            <line x1="9" y1="12" x2="15" y2="12" stroke="#FF7221" strokeWidth="2" strokeLinecap="round"/>
+                          </svg>
+                        </div>
+                        <span className="text-sm text-slate-700">{item.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-500">{item.quantity} units</td>
+                    <td className="px-4 py-3">
+                      <StockStatusBadge status={
+                        item.status === "low_stock" || item.status === "out_of_stock" ? "Low" : "Normal"
+                      } />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
@@ -332,11 +416,14 @@ export default function DashboardPage() {
         {/* Calendar */}
         <Calendar />
 
-        {/* Notifications */}
+        {/* Notifications — mock until backend delivers */}
         <div className="bg-white rounded-2xl border border-slate-100 p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-bold text-slate-800">Notifications</h2>
-            <button className="text-sm text-primary-500 font-medium hover:underline">
+            <button
+              onClick={() => navigate("/admin/notifications")}
+              className="text-sm text-primary-500 font-medium hover:underline"
+            >
               Show more
             </button>
           </div>
@@ -355,7 +442,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Patient Queue */}
+        {/* Patient Queue — real data */}
         <div className="bg-white rounded-2xl border border-slate-100 p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-bold text-slate-800">Patient queue</h2>
@@ -366,18 +453,28 @@ export default function DashboardPage() {
               Show more
             </button>
           </div>
-          <div className="flex flex-col gap-3">
-            {PATIENT_QUEUE.map((patient) => (
-              <div key={patient.id} className="flex items-center gap-3">
-                <PatientAvatar name={patient.name} />
-                <span className="text-sm font-medium text-slate-700 flex-1 truncate">
-                  {patient.name}
-                </span>
-                <span className="text-xs text-slate-400 shrink-0">{patient.staffNumber}</span>
-                <QueueStatusBadge status={patient.status} />
-              </div>
-            ))}
-          </div>
+          {queueLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <LoadingSpinner size="md" />
+            </div>
+          ) : queue.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-6">No active patients.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {queue.map((patient) => (
+                <div key={patient._id} className="flex items-center gap-3">
+                  <PatientAvatar name={patient.patientName} />
+                  <span className="text-sm font-medium text-slate-700 flex-1 truncate">
+                    {patient.patientName}
+                  </span>
+                  <span className="text-xs text-slate-400 shrink-0">{patient.staffNumber}</span>
+                  <QueueStatusBadge status={
+                    patient.status === "in_consultation" ? "In consultation" : "Waiting"
+                  } />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
       </div>
