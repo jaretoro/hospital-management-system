@@ -238,21 +238,21 @@ export default function DashboardPage() {
   const [queueLoading,    setQueueLoading]    = useState(true);
 
   useEffect(() => {
-    // Total patients + seen today
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+    // Total patients + total medications
     const fetchStats = async () => {
       try {
-        const [patientsRes, medsRes, reportRes] = await Promise.all([
+        const [patientsRes, medsRes] = await Promise.all([
           api.get<{ data: { total: number } }>("/v1/patients?limit=1"),
           api.get<{ data: { total: number } }>("/v1/medications?limit=1"),
-          api.get<{ data: { patientsSeenToday?: number } }>("/api/reports/dashboard").catch(() => ({ data: { patientsSeenToday: 0 } })),
         ]);
         setTotalPatients(patientsRes.data.total ?? 0);
         setTotalMeds(medsRes.data.total ?? 0);
-        setSeenToday(reportRes.data.patientsSeenToday ?? 0);
       } catch {
         setTotalPatients(0);
         setTotalMeds(0);
-        setSeenToday(0);
       }
     };
 
@@ -262,7 +262,6 @@ export default function DashboardPage() {
         const res = await api.get<{ data: { medications: Medication[] } }>(
           "/v1/medications?limit=10&sortBy=quantity"
         );
-        // Show all, sorted by quantity ascending so low stock appears first
         setStockMeds(res.data.medications ?? []);
       } catch {
         setStockMeds([]);
@@ -271,18 +270,22 @@ export default function DashboardPage() {
       }
     };
 
-    // Today's active patient queue
+    // Today's consultations — derive both queue and seen-today count
     const fetchQueue = async () => {
       try {
         const res = await api.get<{ data: { consultations: Consultation[] } }>(
-          "/v1/consultations?limit=100"
+          `/v1/consultations?limit=100&date=${today}`
         );
-        const active = (res.data.consultations ?? []).filter(
+        const all = res.data.consultations ?? [];
+        const active = all.filter(
           (c) => c.status === "waiting" || c.status === "in_consultation"
         );
+        const seen = all.filter((c) => c.status === "completed").length;
         setQueue(active.slice(0, 5));
+        setSeenToday(seen);
       } catch {
         setQueue([]);
+        setSeenToday(0);
       } finally {
         setQueueLoading(false);
       }
