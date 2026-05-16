@@ -15,6 +15,7 @@ interface Consultation {
   complaint:   string;
   diagnosis?:  string;
   diagnosisNotes?: string;
+  checkInTime: string;
   vitals?: {
     bloodPressure: string;
     heartRate:     number;
@@ -556,15 +557,26 @@ export default function DoctorConsultationPage() {
     try {
       if (!silent) setLoading(true);
       setError(null);
-      // Backend status filter is broken — fetch all and filter client-side
-      // TODO: add a tab/toggle so doctor can also view their past completed consultations
+      // Backend status filter is broken — fetch all and filter/sort client-side
       const res = await api.get<{ status: boolean; data: { consultations: Consultation[]; total: number; totalPages: number } }>(
         `/v1/consultations?limit=100`
       );
-      const active = res.data.consultations.filter(
-        (c) => c.status === "waiting" || c.status === "in_consultation"
-      );
-      setConsultations(active);
+      const today = new Date().toDateString();
+      const visible = res.data.consultations
+        .filter((c) => {
+          if (c.status === "cancelled") return false;
+          // For completed, only show today's
+          if (c.status === "completed") {
+            return new Date(c.checkInTime).toDateString() === today;
+          }
+          return true;
+        })
+        // Active consultations float to top, completed sink to bottom
+        .sort((a, b) => {
+          const rank = (s: string) => s === "waiting" || s === "in_consultation" ? 0 : 1;
+          return rank(a.status) - rank(b.status);
+        });
+      setConsultations(visible);
       setTotalPages(1);
     } catch (err: any) {
       if (!silent) setError(err.message ?? "Failed to load consultations");
@@ -664,7 +676,7 @@ export default function DoctorConsultationPage() {
                   <td className="px-6 py-4"><StatusBadge status={c.status} /></td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      {c.status === "completed" || c.status === "cancelled" ? (
+                      {c.status === "completed" ? (
                         <button
                           onClick={() => { setSelected(c); setView("view"); }}
                           className="text-sm font-medium text-slate-700 hover:text-primary-500 transition-colors"
