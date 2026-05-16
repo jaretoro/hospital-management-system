@@ -336,8 +336,9 @@ export default function ConsultationPage() {
     setActionLoading(true);
     try {
       await api.patch(`/v1/consultations/${administerTarget._id}/administer`, { userId: user.id });
-      // Remove from list — medication has been dispensed, consultation is fully done
-      setConsultations((prev) => prev.filter((c) => c._id !== administerTarget._id));
+      setConsultations((prev) =>
+        prev.map((c) => c._id === administerTarget._id ? { ...c, status: "completed" } : c)
+      );
       setAdministerTarget(null);
     } catch (err: any) {
       alert(err.message ?? "Failed to administer medication");
@@ -405,8 +406,8 @@ export default function ConsultationPage() {
                         View
                       </button>
 
-                      {/* Administer — after doctor has diagnosed (backend keeps in_consultation status until administer) */}
-                      {(c.status === "completed" || c.status === "in_consultation") && c.prescriptions.length > 0 && (
+                      {/* Administer — doctor has diagnosed but nurse hasn't dispensed yet */}
+                      {c.status === "in_consultation" && c.prescriptions.length > 0 && (
                         <button
                           onClick={() => setAdministerTarget(c)}
                           className="h-8 px-4 rounded-lg bg-green-500 text-white text-xs font-semibold hover:bg-green-600 transition-colors"
