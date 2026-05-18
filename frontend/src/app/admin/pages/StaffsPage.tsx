@@ -260,9 +260,11 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
   useEffect(() => {
     const checkExisting = async () => {
       try {
+        const d = new Date();
+        const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
         const res = await api.get<{
           data: { consultations: { _id: string; status: string; patient: any; complaint: string; vitals?: any }[] };
-        }>("/v1/consultations");
+        }>(`/v1/consultations?limit=100&date=${today}`);
 
         const active = res.data.consultations.find((c) => {
           const patientId = typeof c.patient === "object" ? c.patient._id : c.patient;
