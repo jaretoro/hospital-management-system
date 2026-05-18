@@ -478,8 +478,6 @@ export default function MedicationsPage() {
     }
   };
 
-  useEffect(() => { fetchMedications(); }, []);
-
   useEffect(() => { fetchMedications(); }, [currentPage]);
 
   // ── Sort ──────────────────────────────────────────────────
