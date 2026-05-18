@@ -490,15 +490,15 @@ function RecordVitalsModal({ patient, onClose }: { patient: Patient; onClose: ()
 
 // ── Action Dropdown ───────────────────────────────────────────
 function ActionDropdown({
-  onView, onRecordVitals, onDelete, onClose,
+  onView, onRecordVitals, onDelete, onClose, openUp,
 }: {
   onView: () => void; onRecordVitals: () => void;
-  onDelete: () => void; onClose: () => void;
+  onDelete: () => void; onClose: () => void; openUp?: boolean;
 }) {
   return (
     <>
       <div className="fixed inset-0 z-10" onClick={onClose} />
-      <div className="absolute right-8 z-20 bg-white rounded-xl shadow-lg border border-slate-100 py-1 w-40">
+      <div className={cn("absolute right-8 z-20 bg-white rounded-xl shadow-lg border border-slate-100 py-1 w-40", openUp ? "bottom-8" : "top-8")}>
         <button onClick={onView} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
           <Eye size={15} className="text-slate-400" /> View
         </button>
@@ -1035,7 +1035,7 @@ export default function StaffsPage() {
             {processed.length === 0 ? (
               <tr><td colSpan={6} className="text-center py-12 text-sm text-slate-400">No patients found.</td></tr>
             ) : (
-              processed.map((patient) => (
+              processed.map((patient, index) => (
                 <tr key={patient._id} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors relative">
                   <td className="px-6 py-4 text-sm font-medium text-slate-700">{patient.fullName}</td>
                   <td className="px-6 py-4 text-sm text-slate-500">{patient.staffNumber}</td>
@@ -1064,6 +1064,7 @@ export default function StaffsPage() {
                             onRecordVitals={() => { setVitalsPatient(patient); setOpenDropdown(null); }}
                             onDelete={() => deleteSingle(patient._id)}
                             onClose={() => setOpenDropdown(null)}
+                            openUp={index >= processed.length - 2}
                           />
                         )}
                       </>
