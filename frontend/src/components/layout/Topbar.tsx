@@ -156,14 +156,19 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
       }
     };
 
+    let fallbackInterval: ReturnType<typeof setInterval> | null = null;
+
     es.onerror = () => {
-      // SSE dropped — fall back to polling every 30s
       es.close();
-      const interval = setInterval(fetchNotifications, 30000);
-      return () => clearInterval(interval);
+      if (!fallbackInterval) {
+        fallbackInterval = setInterval(fetchNotifications, 10000);
+      }
     };
 
-    return () => es.close();
+    return () => {
+      es.close();
+      if (fallbackInterval) clearInterval(fallbackInterval);
+    };
   }, []);
 
   // Close dropdown when clicking outside
