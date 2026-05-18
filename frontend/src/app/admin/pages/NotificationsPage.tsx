@@ -1,142 +1,184 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Search, X, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useLocation } from "react-router-dom";
+import { api } from "@/lib/api";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 // ── Types ─────────────────────────────────────────────────────
 interface Notification {
-  id: number;
-  type: "stock_alert" | "new_consultation" | "medication_restock" | "vitals_sent" | "new_patient";
-  title: string;
-  description: string;
-  date: string;
-  timeAgo: string;
-  read: boolean;
-  role: "both" | "admin" | "doctor";
+  _id:       string;
+  type:      string;
+  message:   string;
+  isRead:    boolean;
+  createdAt: string;
+  data?: {
+    consultationId?: string;
+    patientName?:    string;
+    staffNumber?:    string;
+    department?:     string;
+    status?:         string;
+  };
 }
 
 type SortType = "recent" | "unread";
 
-// ── Mock Data ─────────────────────────────────────────────────
-const INITIAL_NOTIFICATIONS: Notification[] = [
-  { id: 1,  type: "stock_alert",        title: "Stock alert",          description: "You're running low on supplies. Time to restock",          date: "15th January, 2025", timeAgo: "10mins", read: false, role: "both"  },
-  { id: 2,  type: "new_consultation",   title: "New consultation",     description: "Glory Nwosu has been added to the consultation queue",      date: "15th January, 2025", timeAgo: "15mins", read: false, role: "both"  },
-  { id: 3,  type: "medication_restock", title: "Medication restock",   description: "Cefuroxime stock has been restocked to 1500 pieces",        date: "15th January, 2025", timeAgo: "30mins", read: false, role: "both"  },
-  { id: 4,  type: "stock_alert",        title: "Stock alert",          description: "You're running low on supplies. Time to restock",          date: "15th January, 2025", timeAgo: "1hr",    read: false, role: "both"  },
-  { id: 5,  type: "vitals_sent",        title: "Vitals sent",          description: "Elizabeth Asojo's vitals have been sent to the doctor",     date: "15th January, 2025", timeAgo: "1hr",    read: true,  role: "both"  },
-  { id: 6,  type: "new_consultation",   title: "New consultation",     description: "John Okafor has been added to the consultation queue",      date: "15th January, 2025", timeAgo: "2hrs",   read: true,  role: "both"  },
-  { id: 7,  type: "new_patient",        title: "New patient added",    description: "Amaka Obi has been registered as a new patient",           date: "14th January, 2025", timeAgo: "1 day",  read: true,  role: "admin" },
-  { id: 8,  type: "medication_restock", title: "Medication restock",   description: "Ampiclox stock has been restocked to 800 pieces",          date: "14th January, 2025", timeAgo: "1 day",  read: true,  role: "both"  },
-  { id: 9,  type: "stock_alert",        title: "Stock alert",          description: "You're running low on supplies. Time to restock",          date: "14th January, 2025", timeAgo: "1 day",  read: true,  role: "both"  },
-  { id: 10, type: "new_consultation",   title: "New consultation",     description: "Tunde Adeyemi has been added to the consultation queue",    date: "14th January, 2025", timeAgo: "2 days", read: true,  role: "both"  },
-  { id: 11, type: "vitals_sent",        title: "Vitals sent",          description: "Ngozi Eze's vitals have been sent to the doctor",          date: "13th January, 2025", timeAgo: "2 days", read: true,  role: "both"  },
-  { id: 12, type: "new_patient",        title: "New patient added",    description: "Emeka Nwachukwu has been registered as a new patient",     date: "13th January, 2025", timeAgo: "2 days", read: true,  role: "admin" },
-];
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins  = Math.floor(diff / 60000);
+  if (mins < 1)   return "Just now";
+  if (mins < 60)  return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)   return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("en-GB", {
+    day: "numeric", month: "long", year: "numeric",
+  });
+}
 
 // ── Notification Icon ─────────────────────────────────────────
-function NotifIcon({ type }: { type: Notification["type"] }) {
-  const icons = {
-    stock_alert: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="8" stroke="#FF7221" strokeWidth="1.8"/>
-        <line x1="9" y1="12" x2="15" y2="12" stroke="#FF7221" strokeWidth="1.8" strokeLinecap="round"/>
-        <line x1="12" y1="9" x2="12" y2="15" stroke="#FF7221" strokeWidth="1.8" strokeLinecap="round"/>
-      </svg>
-    ),
-    new_consultation: (
+function NotifIcon({ type }: { type: string }) {
+  const isMed    = type.includes("stock") || type.includes("medication");
+  const isVitals = type.includes("vital");
+  const isPatient = type.includes("patient");
+
+  if (isVitals) {
+    return (
+      <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="#3b82f6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+    );
+  }
+  if (isMed) {
+    return (
+      <div className="w-12 h-12 rounded-full bg-primary-50 flex items-center justify-center shrink-0">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="8" stroke="#FF7221" strokeWidth="1.8"/>
+          <line x1="9" y1="12" x2="15" y2="12" stroke="#FF7221" strokeWidth="1.8" strokeLinecap="round"/>
+          <line x1="12" y1="9" x2="12" y2="15" stroke="#FF7221" strokeWidth="1.8" strokeLinecap="round"/>
+        </svg>
+      </div>
+    );
+  }
+  if (isPatient) {
+    return (
+      <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center shrink-0">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <circle cx="9" cy="7" r="3" stroke="#16a34a" strokeWidth="1.8"/>
+          <path d="M3 19c0-3.314 2.686-6 6-6s6 2.686 6 6" stroke="#16a34a" strokeWidth="1.8" strokeLinecap="round"/>
+          <line x1="19" y1="8" x2="19" y2="14" stroke="#16a34a" strokeWidth="1.8" strokeLinecap="round"/>
+          <line x1="16" y1="11" x2="22" y2="11" stroke="#16a34a" strokeWidth="1.8" strokeLinecap="round"/>
+        </svg>
+      </div>
+    );
+  }
+  return (
+    <div className="w-12 h-12 rounded-full bg-primary-50 flex items-center justify-center shrink-0">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
         <rect x="3" y="4" width="18" height="16" rx="2" stroke="#FF7221" strokeWidth="1.8"/>
         <line x1="8" y1="9"  x2="16" y2="9"  stroke="#FF7221" strokeWidth="1.8" strokeLinecap="round"/>
         <line x1="8" y1="13" x2="14" y2="13" stroke="#FF7221" strokeWidth="1.8" strokeLinecap="round"/>
       </svg>
-    ),
-    medication_restock: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="8" stroke="#FF7221" strokeWidth="1.8"/>
-        <line x1="9" y1="12" x2="15" y2="12" stroke="#FF7221" strokeWidth="1.8" strokeLinecap="round"/>
-        <line x1="12" y1="9" x2="12" y2="15" stroke="#FF7221" strokeWidth="1.8" strokeLinecap="round"/>
-      </svg>
-    ),
-    vitals_sent: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="#FF7221" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-    ),
-    new_patient: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <circle cx="9" cy="7" r="3" stroke="#FF7221" strokeWidth="1.8"/>
-        <path d="M3 19c0-3.314 2.686-6 6-6s6 2.686 6 6" stroke="#FF7221" strokeWidth="1.8" strokeLinecap="round"/>
-        <line x1="19" y1="8" x2="19" y2="14" stroke="#FF7221" strokeWidth="1.8" strokeLinecap="round"/>
-        <line x1="16" y1="11" x2="22" y2="11" stroke="#FF7221" strokeWidth="1.8" strokeLinecap="round"/>
-      </svg>
-    ),
-  };
-
-  return (
-    <div className="w-12 h-12 rounded-full bg-primary-50 flex items-center justify-center shrink-0">
-      {icons[type]}
     </div>
   );
 }
 
+function typeLabel(type: string): string {
+  if (type === "new_consultation")   return "New consultation";
+  if (type.includes("stock"))        return "Stock alert";
+  if (type.includes("medication"))   return "Medication restock";
+  if (type.includes("vital"))        return "Vitals sent";
+  if (type.includes("patient"))      return "New patient";
+  return type.replace(/_/g, " ");
+}
+
 // ── Main Page ─────────────────────────────────────────────────
 export default function NotificationsPage() {
-  const location = useLocation();
-  const isDoctor = location.pathname.startsWith("/doctor");
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [marking,       setMarking]       = useState(false);
+  const [search,        setSearch]        = useState("");
+  const [sortType,      setSortType]      = useState<SortType>("recent");
 
-  const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
-  const [search, setSearch]               = useState("");
-  const [sortType, setSortType]           = useState<SortType>("recent");
-
-  // Filter by role
-  const roleFiltered = useMemo(() =>
-    notifications.filter((n) =>
-      n.role === "both" || n.role === (isDoctor ? "doctor" : "admin")
-    ),
-  [notifications, isDoctor]);
-
-  // Filter by search + sort
-  const processed = useMemo(() => {
-    let result = roleFiltered.filter((n) =>
-      n.title.toLowerCase().includes(search.toLowerCase()) ||
-      n.description.toLowerCase().includes(search.toLowerCase())
-    );
-    if (sortType === "unread") {
-      result = [...result].sort((a, b) => {
-        if (!a.read && b.read) return -1;
-        if (a.read && !b.read) return 1;
-        return 0;
-      });
+  const fetchNotifications = async () => {
+    try {
+      const res = await api.get<{
+        data: { notifications: Notification[]; unreadCount: number };
+      }>("/api/v1/notifications");
+      setNotifications(res.data.notifications ?? []);
+    } catch {
+      setNotifications([]);
+    } finally {
+      setLoading(false);
     }
-    return result;
-  }, [roleFiltered, search, sortType]);
-
-  // Mark single as read
-  const markAsRead = (id: number) => {
-    setNotifications((prev) =>
-      prev.map((n) => n.id === id ? { ...n, read: true } : n)
-    );
   };
 
-  // Mark all as read
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  useEffect(() => { fetchNotifications(); }, []);
+
+  const handleMarkAsRead = async (id: string) => {
+    const notif = notifications.find((n) => n._id === id);
+    if (!notif || notif.isRead) return;
+    try {
+      await api.patch(`/api/v1/notifications/${id}/read`, {});
+      setNotifications((prev) =>
+        prev.map((n) => n._id === id ? { ...n, isRead: true } : n)
+      );
+    } catch {
+      // ignore
+    }
   };
 
-  // Clear search + sort
+  const handleMarkAllRead = async () => {
+    setMarking(true);
+    try {
+      await api.patch("/api/v1/notifications/read-all", {});
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    } catch {
+      // ignore
+    } finally {
+      setMarking(false);
+    }
+  };
+
   const handleClear = () => {
     setSearch("");
     setSortType("recent");
   };
 
-  const unreadCount = roleFiltered.filter((n) => !n.read).length;
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  const processed = useMemo(() => {
+    let result = notifications.filter((n) =>
+      n.message.toLowerCase().includes(search.toLowerCase()) ||
+      typeLabel(n.type).toLowerCase().includes(search.toLowerCase())
+    );
+    if (sortType === "unread") {
+      result = [...result].sort((a, b) => {
+        if (!a.isRead && b.isRead) return -1;
+        if (a.isRead && !b.isRead) return 1;
+        return 0;
+      });
+    }
+    return result;
+  }, [notifications, search, sortType]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5">
 
       {/* ── Toolbar ─────────────────────────────────────────── */}
       <div className="flex items-center gap-4 flex-wrap">
-        {/* Search */}
         <div className="relative flex-1 max-w-sm">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-500" />
           <input
@@ -150,7 +192,6 @@ export default function NotificationsPage() {
 
         <div className="h-6 w-px bg-slate-200" />
 
-        {/* Sort + filters */}
         <div className="flex items-center gap-3 text-sm">
           <div className="flex items-center gap-1.5 text-slate-400">
             <SlidersHorizontal size={14} />
@@ -187,13 +228,13 @@ export default function NotificationsPage() {
           </button>
         </div>
 
-        {/* Mark all read */}
         {unreadCount > 0 && (
           <button
-            onClick={markAllAsRead}
-            className="ml-auto text-sm text-primary-500 font-medium hover:underline"
+            onClick={handleMarkAllRead}
+            disabled={marking}
+            className="ml-auto text-sm text-primary-500 font-medium hover:underline disabled:opacity-50"
           >
-            Mark all as read
+            {marking ? "Marking..." : "Mark all as read"}
           </button>
         )}
       </div>
@@ -207,41 +248,38 @@ export default function NotificationsPage() {
         ) : (
           processed.map((notif) => (
             <button
-              key={notif.id}
-              onClick={() => markAsRead(notif.id)}
+              key={notif._id}
+              onClick={() => handleMarkAsRead(notif._id)}
               className={cn(
                 "w-full text-left bg-white rounded-2xl border transition-all duration-150 p-5",
-                notif.read
+                notif.isRead
                   ? "border-slate-100 hover:border-slate-200"
                   : "border-primary-100 bg-primary-50/20 hover:border-primary-200"
               )}
             >
               <div className="flex items-start gap-4">
-                {/* Icon */}
                 <NotifIcon type={notif.type} />
-
-                {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-4">
                     <p className={cn(
                       "text-sm font-bold",
-                      notif.read ? "text-slate-700" : "text-slate-800"
+                      notif.isRead ? "text-slate-700" : "text-slate-800"
                     )}>
-                      {notif.title}
+                      {typeLabel(notif.type)}
                     </p>
                     <div className="flex items-center gap-2 shrink-0">
-                      {!notif.read && (
+                      {!notif.isRead && (
                         <span className="w-2.5 h-2.5 rounded-full bg-primary-500 shrink-0" />
                       )}
-                      <span className="text-xs text-slate-400">{notif.timeAgo}</span>
+                      <span className="text-xs text-slate-400">{timeAgo(notif.createdAt)}</span>
                     </div>
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">{notif.date}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{formatDate(notif.createdAt)}</p>
                   <p className={cn(
                     "text-sm mt-2",
-                    notif.read ? "text-slate-500" : "text-primary-600"
+                    notif.isRead ? "text-slate-500" : "text-primary-600"
                   )}>
-                    {notif.description}
+                    {notif.message}
                   </p>
                 </div>
               </div>
