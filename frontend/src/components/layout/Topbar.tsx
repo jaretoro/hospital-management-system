@@ -132,41 +132,65 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
     // Initial load
     fetchNotifications();
 
-    // SSE for real-time notifications
+    // SSE via fetch so we can send Authorization header
     const token = localStorage.getItem("token");
     if (!token) return;
 
     const BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
-    const es = new EventSource(`${BASE_URL}/v1/notifications/stream?token=${token}`);
-
-    es.onmessage = (event) => {
-      try {
-        const notification: Notification = JSON.parse(event.data);
-        const allowed = filterByRole([notification], isDoctor);
-        if (allowed.length === 0) return;
-        setNotifications((prev) => {
-          if (prev.some((n) => n._id === notification._id)) return prev;
-          return [notification, ...prev];
-        });
-        if (!notification.isRead) {
-          setUnreadCount((prev) => prev + 1);
-        }
-      } catch {
-        // ignore malformed events
-      }
-    };
-
+    const abortController = new AbortController();
     let fallbackInterval: ReturnType<typeof setInterval> | null = null;
 
-    es.onerror = () => {
-      es.close();
-      if (!fallbackInterval) {
-        fallbackInterval = setInterval(fetchNotifications, 10000);
+    const connectStream = async () => {
+      try {
+        const response = await fetch(`${BASE_URL}/v1/notifications/stream`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: abortController.signal,
+        });
+
+        if (!response.ok || !response.body) throw new Error("Stream unavailable");
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            try {
+              const notification: Notification = JSON.parse(line.slice(5).trim());
+              const allowed = filterByRole([notification], isDoctor);
+              if (allowed.length === 0) continue;
+              setNotifications((prev) => {
+                if (prev.some((n) => n._id === notification._id)) return prev;
+                return [notification, ...prev];
+              });
+              if (!notification.isRead) {
+                setUnreadCount((prev) => prev + 1);
+              }
+            } catch {
+              // ignore malformed events
+            }
+          }
+        }
+      } catch {
+        // Stream failed — fall back to polling
+        if (!fallbackInterval && !abortController.signal.aborted) {
+          fallbackInterval = setInterval(fetchNotifications, 10000);
+        }
       }
     };
 
+    connectStream();
+
     return () => {
-      es.close();
+      abortController.abort();
       if (fallbackInterval) clearInterval(fallbackInterval);
     };
   }, []);
