@@ -115,14 +115,45 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
       setNotifications(res.data.notifications ?? []);
       setUnreadCount(res.data.unreadCount ?? 0);
     } catch {
-      // silently fail — badge stays at last known count
+      // silently fail
     }
   };
 
   useEffect(() => {
+    // Initial load
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
+
+    // SSE for real-time notifications
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
+    const es = new EventSource(`${BASE_URL}/api/v1/notifications/stream?token=${token}`);
+
+    es.onmessage = (event) => {
+      try {
+        const notification: Notification = JSON.parse(event.data);
+        setNotifications((prev) => {
+          // avoid duplicates
+          if (prev.some((n) => n._id === notification._id)) return prev;
+          return [notification, ...prev];
+        });
+        if (!notification.isRead) {
+          setUnreadCount((prev) => prev + 1);
+        }
+      } catch {
+        // ignore malformed events
+      }
+    };
+
+    es.onerror = () => {
+      // SSE dropped — fall back to polling every 30s
+      es.close();
+      const interval = setInterval(fetchNotifications, 30000);
+      return () => clearInterval(interval);
+    };
+
+    return () => es.close();
   }, []);
 
   // Close dropdown when clicking outside
