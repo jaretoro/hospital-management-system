@@ -108,7 +108,7 @@ export default function NotificationsPage() {
     try {
       const res = await api.get<{
         data: { notifications: Notification[]; unreadCount: number };
-      }>("/api/v1/notifications");
+      }>("/v1/notifications");
       setNotifications(res.data.notifications ?? []);
     } catch {
       setNotifications([]);
@@ -123,7 +123,7 @@ export default function NotificationsPage() {
     const notif = notifications.find((n) => n._id === id);
     if (!notif || notif.isRead) return;
     try {
-      await api.patch(`/api/v1/notifications/${id}/read`, {});
+      await api.patch(`/v1/notifications/${id}/read`, {});
       setNotifications((prev) =>
         prev.map((n) => n._id === id ? { ...n, isRead: true } : n)
       );
@@ -135,7 +135,7 @@ export default function NotificationsPage() {
   const handleMarkAllRead = async () => {
     setMarking(true);
     try {
-      await api.patch("/api/v1/notifications/read-all", {});
+      await api.patch("/v1/notifications/read-all", {});
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     } catch {
       // ignore

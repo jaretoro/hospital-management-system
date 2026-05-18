@@ -111,7 +111,7 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
     try {
       const res = await api.get<{
         data: { notifications: Notification[]; unreadCount: number };
-      }>("/api/v1/notifications");
+      }>("/v1/notifications");
       setNotifications(res.data.notifications ?? []);
       setUnreadCount(res.data.unreadCount ?? 0);
     } catch {
@@ -128,7 +128,7 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
     if (!token) return;
 
     const BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
-    const es = new EventSource(`${BASE_URL}/api/v1/notifications/stream?token=${token}`);
+    const es = new EventSource(`${BASE_URL}/v1/notifications/stream?token=${token}`);
 
     es.onmessage = (event) => {
       try {
@@ -173,7 +173,7 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
 
   const handleMarkAsRead = async (id: string) => {
     try {
-      await api.patch(`/api/v1/notifications/${id}/read`, {});
+      await api.patch(`/v1/notifications/${id}/read`, {});
       setNotifications((prev) =>
         prev.map((n) => n._id === id ? { ...n, isRead: true } : n)
       );
@@ -186,7 +186,7 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
   const handleMarkAllRead = async () => {
     setMarking(true);
     try {
-      await api.patch("/api/v1/notifications/read-all", {});
+      await api.patch("/v1/notifications/read-all", {});
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
     } catch {
