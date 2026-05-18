@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Search, X, SlidersHorizontal } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -96,8 +97,19 @@ function typeLabel(type: string): string {
   return type.replace(/_/g, " ");
 }
 
+const DOCTOR_TYPES = ["new_consultation", "vitals_sent", "diagnosis"];
+const NURSE_TYPES  = ["new_consultation", "vitals_sent", "stock_alert", "medication_restock", "new_patient"];
+
+function filterByRole(notifications: Notification[], isDoctor: boolean): Notification[] {
+  const allowed = isDoctor ? DOCTOR_TYPES : NURSE_TYPES;
+  return notifications.filter((n) => allowed.some((t) => n.type.includes(t)));
+}
+
 // ── Main Page ─────────────────────────────────────────────────
 export default function NotificationsPage() {
+  const location  = useLocation();
+  const isDoctor  = location.pathname.startsWith("/doctor");
+
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [marking,       setMarking]       = useState(false);
@@ -109,7 +121,7 @@ export default function NotificationsPage() {
       const res = await api.get<{
         data: { notifications: Notification[]; unreadCount: number };
       }>("/v1/notifications");
-      setNotifications(res.data.notifications ?? []);
+      setNotifications(filterByRole(res.data.notifications ?? [], isDoctor));
     } catch {
       setNotifications([]);
     } finally {

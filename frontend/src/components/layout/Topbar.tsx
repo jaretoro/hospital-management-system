@@ -23,6 +23,14 @@ interface Notification {
   };
 }
 
+const DOCTOR_TYPES = ["new_consultation", "vitals_sent", "diagnosis"];
+const NURSE_TYPES  = ["new_consultation", "vitals_sent", "stock_alert", "medication_restock", "new_patient"];
+
+function filterByRole(notifications: Notification[], isDoctor: boolean): Notification[] {
+  const allowed = isDoctor ? DOCTOR_TYPES : NURSE_TYPES;
+  return notifications.filter((n) => allowed.some((t) => n.type.includes(t)));
+}
+
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins  = Math.floor(diff / 60000);
@@ -112,8 +120,9 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
       const res = await api.get<{
         data: { notifications: Notification[]; unreadCount: number };
       }>("/v1/notifications");
-      setNotifications(res.data.notifications ?? []);
-      setUnreadCount(res.data.unreadCount ?? 0);
+      const filtered = filterByRole(res.data.notifications ?? [], isDoctor);
+      setNotifications(filtered);
+      setUnreadCount(filtered.filter((n) => !n.isRead).length);
     } catch {
       // silently fail
     }
@@ -133,8 +142,9 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
     es.onmessage = (event) => {
       try {
         const notification: Notification = JSON.parse(event.data);
+        const allowed = filterByRole([notification], isDoctor);
+        if (allowed.length === 0) return;
         setNotifications((prev) => {
-          // avoid duplicates
           if (prev.some((n) => n._id === notification._id)) return prev;
           return [notification, ...prev];
         });
