@@ -283,8 +283,18 @@ function MedicalRecordEdit({
         const med = medications.find((m) => m._id === value);
         return { ...item, medication: value, medicationName: med?.name ?? "" };
       }
+      if (field === "medicationName") {
+        // Free text — clear any linked medication ID
+        return { ...item, medication: "", medicationName: value };
+      }
       return { ...item, [field]: value };
     }));
+  };
+
+  const selectMedication = (id: number, med: Medication) => {
+    setPrescription((p) => p.map((item) =>
+      item.id !== id ? item : { ...item, medication: med._id, medicationName: med.name }
+    ));
   };
 
   const removeLine = (id: number) => setPrescription((p) => p.filter((item) => item.id !== id));
@@ -293,9 +303,9 @@ function MedicalRecordEdit({
     const e: Record<string, string> = {};
     if (!diagnosis.trim()) e.diagnosis = "Diagnosis is required";
     prescription.forEach((item) => {
-      if (item.medication && !item.quantity)  e[`qty_${item.id}`] = "Enter quantity";
-      if (item.medication && !item.dosage)    e[`dos_${item.id}`] = "Enter dosage";
-      if (item.medication && !item.duration)  e[`dur_${item.id}`] = "Enter duration";
+      if (item.medicationName.trim() && !item.quantity)  e[`qty_${item.id}`] = "Enter quantity";
+      if (item.medicationName.trim() && !item.dosage)    e[`dos_${item.id}`] = "Enter dosage";
+      if (item.medicationName.trim() && !item.duration)  e[`dur_${item.id}`] = "Enter duration";
     });
     return e;
   };
@@ -313,9 +323,9 @@ function MedicalRecordEdit({
           : ""),
         complaint: consultation.complaint,
         prescriptions: prescription
-        .filter((p) => p.medication)
+        .filter((p) => p.medicationName.trim())
         .map((p) => ({
-          medication:     p.medication,
+          medication:     p.medication || p.medicationName,
           medicationName: p.medicationName,
           dosage:         p.dosage,
           quantity:       Number(p.quantity),
@@ -433,23 +443,38 @@ function MedicalRecordEdit({
             <div className="flex flex-col gap-3">
               {prescription.map((item) => (
                 <div key={item.id} className="flex items-start gap-3">
-                  {/* Medication */}
-                  <div className="flex flex-col gap-1 flex-1">
-                    <select
-                      value={item.medication}
-                      onChange={(e) => updateLine(item.id, "medication", e.target.value)}
+                  {/* Medication — combo: type freely or pick from suggestions */}
+                  <div className="flex flex-col gap-1 flex-1 relative">
+                    <input
+                      placeholder="Type or select medication"
+                      value={item.medicationName}
+                      onChange={(e) => updateLine(item.id, "medicationName", e.target.value)}
                       className={cn(
-                        "h-11 px-3 rounded-xl border text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white",
+                        "h-11 px-3 rounded-xl border text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-400",
                         errors[`med_${item.id}`] ? "border-red-400" : "border-slate-200"
                       )}
-                    >
-                      <option value="">Select medication</option>
-                      {medications.map((med) => (
-                        <option key={med._id} value={med._id}>
-                          {med.name} (stock: {med.quantity})
-                        </option>
-                      ))}
-                    </select>
+                    />
+                    {/* Dropdown suggestions */}
+                    {item.medicationName.length > 0 && !item.medication && (() => {
+                      const suggestions = medications.filter((m) =>
+                        m.name.toLowerCase().includes(item.medicationName.toLowerCase())
+                      );
+                      return suggestions.length > 0 ? (
+                        <div className="absolute top-12 left-0 right-0 z-30 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                          {suggestions.map((med) => (
+                            <button
+                              key={med._id}
+                              type="button"
+                              onMouseDown={() => selectMedication(item.id, med)}
+                              className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center justify-between"
+                            >
+                              <span>{med.name}</span>
+                              <span className="text-xs text-slate-400">stock: {med.quantity}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null;
+                    })()}
                     {errors[`med_${item.id}`] && <p className="text-xs text-red-500">{errors[`med_${item.id}`]}</p>}
                   </div>
 
