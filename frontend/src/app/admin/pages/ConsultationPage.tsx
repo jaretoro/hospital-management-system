@@ -247,9 +247,8 @@ function ConsultationDetailView({
               {consultation.prescriptions.map((p) => (
                 <div key={p._id} className="flex items-center gap-4 text-sm text-slate-600">
                   <span className="font-medium">{p.medicationName}</span>
-                  <span>{p.dosage}</span>
+                  <span className="text-slate-400">{p.dosage}</span>
                   <span>{p.quantity} units</span>
-                  <span>{p.duration} days</span>
                   {p.notes && <span className="text-slate-400">{p.notes}</span>}
                 </div>
               ))}

@@ -48,8 +48,7 @@ interface PrescriptionItem {
   medication:     string;
   medicationName: string;
   quantity:       string;
-  dosage:         string;
-  duration:       string;
+  instructions:   string;
   notes:          string;
 }
 
@@ -234,9 +233,8 @@ function MedicalRecordView({
               {consultation.prescriptions.map((p) => (
                 <div key={p._id} className="flex items-center gap-4 text-sm text-slate-600">
                   <span className="font-medium">{p.medicationName}</span>
-                  <span>{p.dosage}</span>
+                  <span className="text-slate-400">{p.dosage}</span>
                   <span>{p.quantity} units</span>
-                  <span>{p.duration} days</span>
                 </div>
               ))}
             </div>
@@ -272,7 +270,7 @@ function MedicalRecordEdit({
   const addPrescriptionLine = () => {
     setPrescription((p) => [
       ...p,
-      { id: Date.now(), medication: "", medicationName: "", quantity: "", dosage: "", duration: "", notes: "" },
+      { id: Date.now(), medication: "", medicationName: "", quantity: "", instructions: "", notes: "" },
     ]);
   };
 
@@ -303,9 +301,8 @@ function MedicalRecordEdit({
     const e: Record<string, string> = {};
     if (!diagnosis.trim()) e.diagnosis = "Diagnosis is required";
     prescription.forEach((item) => {
-      if (item.medicationName.trim() && !item.quantity)  e[`qty_${item.id}`] = "Enter quantity";
-      if (item.medicationName.trim() && !item.dosage)    e[`dos_${item.id}`] = "Enter dosage";
-      if (item.medicationName.trim() && !item.duration)  e[`dur_${item.id}`] = "Enter duration";
+      if (item.medicationName.trim() && !item.quantity)      e[`qty_${item.id}`] = "Enter quantity";
+      if (item.medicationName.trim() && !item.instructions)  e[`ins_${item.id}`] = "Enter instructions";
     });
     return e;
   };
@@ -327,9 +324,9 @@ function MedicalRecordEdit({
         .map((p) => ({
           medication:     p.medication || p.medicationName,
           medicationName: p.medicationName,
-          dosage:         p.dosage,
+          dosage:         p.instructions,
           quantity:       Number(p.quantity),
-          duration:       p.duration,
+          duration:       "1",
           notes:          p.notes,
         })),
       });
@@ -478,17 +475,18 @@ function MedicalRecordEdit({
                     {errors[`med_${item.id}`] && <p className="text-xs text-red-500">{errors[`med_${item.id}`]}</p>}
                   </div>
 
-                  {/* Dosage */}
-                  <div className="flex flex-col gap-1 w-28">
+                  {/* Instructions */}
+                  <div className="flex flex-col gap-1 w-48">
                     <input
-                      placeholder="Dosage"
-                      value={item.dosage}
-                      onChange={(e) => updateLine(item.id, "dosage", e.target.value)}
+                      placeholder="e.g. 1 tab tds x 3/7"
+                      value={item.instructions}
+                      onChange={(e) => updateLine(item.id, "instructions", e.target.value)}
                       className={cn(
                         "h-11 px-3 rounded-xl border text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-400",
-                        errors[`dos_${item.id}`] ? "border-red-400" : "border-slate-200"
+                        errors[`ins_${item.id}`] ? "border-red-400" : "border-slate-200"
                       )}
                     />
+                    {errors[`ins_${item.id}`] && <p className="text-xs text-red-500">{errors[`ins_${item.id}`]}</p>}
                   </div>
 
                   {/* Quantity */}
@@ -504,19 +502,7 @@ function MedicalRecordEdit({
                         errors[`qty_${item.id}`] ? "border-red-400" : "border-slate-200"
                       )}
                     />
-                  </div>
-
-                  {/* Duration */}
-                  <div className="flex flex-col gap-1 w-28">
-                    <input
-                      placeholder="Duration"
-                      value={item.duration}
-                      onChange={(e) => updateLine(item.id, "duration", e.target.value)}
-                      className={cn(
-                        "h-11 px-3 rounded-xl border text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-400",
-                        errors[`dur_${item.id}`] ? "border-red-400" : "border-slate-200"
-                      )}
-                    />
+                    {errors[`qty_${item.id}`] && <p className="text-xs text-red-500">{errors[`qty_${item.id}`]}</p>}
                   </div>
 
                   {/* Remove */}
