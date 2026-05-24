@@ -23,12 +23,13 @@ interface Notification {
   };
 }
 
-const DOCTOR_TYPES = ["new_consultation", "vitals_sent", "diagnosis"];
-const NURSE_TYPES  = ["new_consultation", "vitals_sent", "stock_alert", "medication_restock", "new_patient"];
+// Fix 4 & 5: exact match + ready_for_medication added
+const DOCTOR_TYPES = ["new_consultation", "vitals_sent", "diagnosis", "ready_for_medication"];
+const NURSE_TYPES  = ["new_consultation", "vitals_sent", "stock_alert", "medication_restock", "new_patient", "ready_for_medication"];
 
 function filterByRole(notifications: Notification[], isDoctor: boolean): Notification[] {
   const allowed = isDoctor ? DOCTOR_TYPES : NURSE_TYPES;
-  return notifications.filter((n) => allowed.some((t) => n.type.includes(t)));
+  return notifications.filter((n) => allowed.includes(n.type));
 }
 
 function timeAgo(dateStr: string): string {
@@ -115,6 +116,7 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
   const [marking,       setMarking]       = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Fix 1: broadcast moved outside state setter — side effects don't belong in setState
   const fetchNotifications = async (broadcast = false) => {
     try {
       const res = await api.get<{
@@ -122,9 +124,9 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
       }>("/v1/notifications");
       const filtered = filterByRole(res.data.notifications ?? [], isDoctor);
       setNotifications((prev) => {
-        // If there are new notifications, broadcast refresh event
         if (broadcast && filtered.length > 0 && filtered[0]._id !== prev[0]?._id) {
-          window.dispatchEvent(new CustomEvent("sahcomed:notification"));
+          // Schedule outside the render cycle
+          setTimeout(() => window.dispatchEvent(new CustomEvent("sahcomed:notification")), 0);
         }
         return filtered;
       });
@@ -138,7 +140,6 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
     // Initial load
     fetchNotifications();
 
-    // SSE via fetch so we can send Authorization header
     const token = localStorage.getItem("token");
     if (!token) return;
 
@@ -146,7 +147,9 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
     const abortController = new AbortController();
     let fallbackInterval: ReturnType<typeof setInterval> | null = null;
 
-    const connectStream = async () => {
+    // Fix 3: SSE auto-reconnect — retries with exponential backoff, max 30s
+    const connectStream = async (retryDelay = 3000) => {
+      if (abortController.signal.aborted) return;
       try {
         const response = await fetch(`${BASE_URL}/v1/notifications/stream`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -154,6 +157,12 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
         });
 
         if (!response.ok || !response.body) throw new Error("Stream unavailable");
+
+        // Clear fallback polling if SSE reconnected successfully
+        if (fallbackInterval) {
+          clearInterval(fallbackInterval);
+          fallbackInterval = null;
+        }
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -180,18 +189,29 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
               if (!notification.isRead) {
                 setUnreadCount((prev) => prev + 1);
               }
-              // Broadcast so dashboards can re-fetch their data
+              // Broadcast so dashboards re-fetch their data
               window.dispatchEvent(new CustomEvent("sahcomed:notification"));
             } catch {
-              // ignore malformed events
+              // ignore malformed SSE lines
             }
           }
         }
-      } catch {
-        // Stream failed — fall back to polling
-        if (!fallbackInterval && !abortController.signal.aborted) {
+
+        // Stream ended cleanly — reconnect after short delay
+        if (!abortController.signal.aborted) {
+          setTimeout(() => connectStream(3000), 3000);
+        }
+      } catch (err: any) {
+        if (abortController.signal.aborted) return;
+
+        // Start fallback polling while we wait to retry SSE
+        if (!fallbackInterval) {
           fallbackInterval = setInterval(() => fetchNotifications(true), 10000);
         }
+
+        // Retry SSE with backoff (cap at 30s)
+        const nextDelay = Math.min(retryDelay * 2, 30000);
+        setTimeout(() => connectStream(nextDelay), retryDelay);
       }
     };
 

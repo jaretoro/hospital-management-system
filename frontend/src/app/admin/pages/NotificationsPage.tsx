@@ -89,20 +89,23 @@ function NotifIcon({ type }: { type: string }) {
 }
 
 function typeLabel(type: string): string {
-  if (type === "new_consultation")   return "New consultation";
-  if (type.includes("stock"))        return "Stock alert";
-  if (type.includes("medication"))   return "Medication restock";
-  if (type.includes("vital"))        return "Vitals sent";
-  if (type.includes("patient"))      return "New patient";
+  if (type === "new_consultation")     return "New consultation";
+  if (type === "vitals_sent")          return "Vitals sent";
+  if (type === "stock_alert")          return "Stock alert";
+  if (type === "medication_restock")   return "Medication restock";
+  if (type === "new_patient")          return "New patient";
+  if (type === "diagnosis")            return "Diagnosis recorded";
+  if (type === "ready_for_medication") return "Ready for medication";
   return type.replace(/_/g, " ");
 }
 
-const DOCTOR_TYPES = ["new_consultation", "vitals_sent", "diagnosis"];
-const NURSE_TYPES  = ["new_consultation", "vitals_sent", "stock_alert", "medication_restock", "new_patient"];
+// Fix 4 & 5: exact match + ready_for_medication added
+const DOCTOR_TYPES = ["new_consultation", "vitals_sent", "diagnosis", "ready_for_medication"];
+const NURSE_TYPES  = ["new_consultation", "vitals_sent", "stock_alert", "medication_restock", "new_patient", "ready_for_medication"];
 
 function filterByRole(notifications: Notification[], isDoctor: boolean): Notification[] {
   const allowed = isDoctor ? DOCTOR_TYPES : NURSE_TYPES;
-  return notifications.filter((n) => allowed.some((t) => n.type.includes(t)));
+  return notifications.filter((n) => allowed.includes(n.type));
 }
 
 // ── Main Page ─────────────────────────────────────────────────
@@ -129,7 +132,12 @@ export default function NotificationsPage() {
     }
   };
 
-  useEffect(() => { fetchNotifications(); }, []);
+  // Fix 2: listen for SSE-driven refresh event so list updates live
+  useEffect(() => {
+    fetchNotifications();
+    window.addEventListener("sahcomed:notification", fetchNotifications);
+    return () => window.removeEventListener("sahcomed:notification", fetchNotifications);
+  }, []);
 
   const handleMarkAsRead = async (id: string) => {
     const notif = notifications.find((n) => n._id === id);

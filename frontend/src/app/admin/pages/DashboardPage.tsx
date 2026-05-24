@@ -29,7 +29,7 @@ function timeAgoStr(dateStr: string): string {
 }
 
 // Role-based filtering — nurses see everything; doctors skip stock alerts
-const NURSE_TYPES = ["new_consultation", "vitals_sent", "stock_alert", "medication_restock", "new_patient"];
+const NURSE_TYPES = ["new_consultation", "vitals_sent", "stock_alert", "medication_restock", "new_patient", "ready_for_medication"];
 function filterNurseNotifs(items: ApiNotification[]) {
   return items.filter((n) => NURSE_TYPES.includes(n.type));
 }

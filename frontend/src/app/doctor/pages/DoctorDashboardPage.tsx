@@ -45,7 +45,7 @@ function timeAgoStr(dateStr: string): string {
 }
 
 // Doctors only see consultation/vitals-related notifications
-const DOCTOR_TYPES = ["new_consultation", "vitals_sent", "diagnosis"];
+const DOCTOR_TYPES = ["new_consultation", "vitals_sent", "diagnosis", "ready_for_medication"];
 function filterDoctorNotifs(items: ApiNotification[]) {
   return items.filter((n) => DOCTOR_TYPES.includes(n.type));
 }
