@@ -11,7 +11,7 @@ interface Consultation {
   patientName: string;
   staffNumber: string;
   department:  string;
-  status:      "waiting" | "in_consultation" | "completed" | "cancelled";
+  status:      "waiting" | "in_consultation" | "ready_for_medication" | "completed" | "cancelled";
   complaint:   string;
   diagnosis?:  string;
   diagnosisNotes?: string;
@@ -57,16 +57,18 @@ type View = "list" | "edit" | "view";
 // ── Status Badge ──────────────────────────────────────────────
 function StatusBadge({ status }: { status: Consultation["status"] }) {
   const styles = {
-    waiting:         "bg-primary-50 text-primary-500",
-    in_consultation: "bg-blue-50 text-blue-500",
-    completed:       "bg-green-50 text-green-600",
-    cancelled:       "bg-red-50 text-red-500",
+    waiting:              "bg-primary-50 text-primary-500",
+    in_consultation:      "bg-blue-50 text-blue-500",
+    ready_for_medication: "bg-purple-50 text-purple-600",
+    completed:            "bg-green-50 text-green-600",
+    cancelled:            "bg-red-50 text-red-500",
   };
   const labels = {
-    waiting:         "Waiting",
-    in_consultation: "In consultation",
-    completed:       "Completed",
-    cancelled:       "Cancelled",
+    waiting:              "Waiting",
+    in_consultation:      "In consultation",
+    ready_for_medication: "Ready for medication",
+    completed:            "Completed",
+    cancelled:            "Cancelled",
   };
   return (
     <span className={cn(
@@ -576,7 +578,7 @@ export default function DoctorConsultationPage() {
         .filter((c) => {
           if (c.status === "cancelled") return false;
           // For completed, only show today's
-          if (c.status === "completed") {
+          if (c.status === "completed" || c.status === "ready_for_medication") {
             return new Date(c.checkInTime).toDateString() === today;
           }
           return true;
@@ -584,6 +586,7 @@ export default function DoctorConsultationPage() {
         // Active consultations float to top, completed sink to bottom
         .sort((a, b) => {
           const rank = (s: string) => s === "waiting" || s === "in_consultation" ? 0 : 1;
+          // ready_for_medication and completed sink to bottom
           return rank(a.status) - rank(b.status);
         });
       setConsultations(visible);
@@ -686,7 +689,7 @@ export default function DoctorConsultationPage() {
                   <td className="px-6 py-4"><StatusBadge status={c.status} /></td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      {c.status === "completed" ? (
+                      {c.status === "completed" || c.status === "ready_for_medication" ? (
                         <button
                           onClick={() => { setSelected(c); setView("view"); }}
                           className="text-sm font-medium text-slate-700 hover:text-primary-500 transition-colors"

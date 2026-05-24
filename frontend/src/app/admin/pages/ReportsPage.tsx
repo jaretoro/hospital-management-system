@@ -1,86 +1,18 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Printer, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 // ── Types ─────────────────────────────────────────────────────
-interface DiagnosisReport {
-  id: number;
-  diagnosis: string;
-  totalFemale: number;
-  totalMale: number;
+interface DiagnosisRow {
+  diagnosis:     string;
+  totalFemale:   number;
+  totalMale:     number;
+  totalPatients: number;
 }
 
-type Period = "Weekly" | "Monthly" | "Yearly";
-
-// ── Mock Data ─────────────────────────────────────────────────
-const WEEKLY_DATA: DiagnosisReport[] = [
-  { id: 1,  diagnosis: "Plasmodiasis",   totalFemale: 32, totalMale: 57 },
-  { id: 2,  diagnosis: "Plasmodiasis",   totalFemale: 32, totalMale: 57 },
-  { id: 3,  diagnosis: "Typhoid fever",  totalFemale: 18, totalMale: 24 },
-  { id: 4,  diagnosis: "Malaria",        totalFemale: 45, totalMale: 38 },
-  { id: 5,  diagnosis: "Hypertension",   totalFemale: 22, totalMale: 31 },
-  { id: 6,  diagnosis: "Diabetes",       totalFemale: 15, totalMale: 19 },
-  { id: 7,  diagnosis: "Plasmodiasis",   totalFemale: 32, totalMale: 57 },
-  { id: 8,  diagnosis: "Typhoid fever",  totalFemale: 18, totalMale: 24 },
-  { id: 9,  diagnosis: "Malaria",        totalFemale: 45, totalMale: 38 },
-  { id: 10, diagnosis: "Hypertension",   totalFemale: 22, totalMale: 31 },
-  { id: 11, diagnosis: "Plasmodiasis",   totalFemale: 32, totalMale: 57 },
-];
-
-const MONTHLY_DATA: DiagnosisReport[] = [
-  { id: 1,  diagnosis: "Malaria",        totalFemale: 120, totalMale: 145 },
-  { id: 2,  diagnosis: "Typhoid fever",  totalFemale: 88,  totalMale: 94  },
-  { id: 3,  diagnosis: "Hypertension",   totalFemale: 76,  totalMale: 82  },
-  { id: 4,  diagnosis: "Diabetes",       totalFemale: 54,  totalMale: 61  },
-  { id: 5,  diagnosis: "Plasmodiasis",   totalFemale: 99,  totalMale: 110 },
-  { id: 6,  diagnosis: "Pneumonia",      totalFemale: 43,  totalMale: 55  },
-  { id: 7,  diagnosis: "Anaemia",        totalFemale: 67,  totalMale: 39  },
-  { id: 8,  diagnosis: "UTI",            totalFemale: 91,  totalMale: 22  },
-  { id: 9,  diagnosis: "Malaria",        totalFemale: 110, totalMale: 130 },
-  { id: 10, diagnosis: "Typhoid fever",  totalFemale: 75,  totalMale: 88  },
-  { id: 11, diagnosis: "Hypertension",   totalFemale: 60,  totalMale: 74  },
-  { id: 12, diagnosis: "Plasmodiasis",   totalFemale: 88,  totalMale: 102 },
-];
-
-const YEARLY_DATA: DiagnosisReport[] = [
-  { id: 1,  diagnosis: "Malaria",        totalFemale: 520, totalMale: 610 },
-  { id: 2,  diagnosis: "Typhoid fever",  totalFemale: 380, totalMale: 420 },
-  { id: 3,  diagnosis: "Hypertension",   totalFemale: 290, totalMale: 340 },
-  { id: 4,  diagnosis: "Diabetes",       totalFemale: 210, totalMale: 250 },
-  { id: 5,  diagnosis: "Plasmodiasis",   totalFemale: 445, totalMale: 490 },
-  { id: 6,  diagnosis: "Pneumonia",      totalFemale: 180, totalMale: 220 },
-  { id: 7,  diagnosis: "Anaemia",        totalFemale: 310, totalMale: 160 },
-  { id: 8,  diagnosis: "UTI",            totalFemale: 420, totalMale: 95  },
-  { id: 9,  diagnosis: "Malaria",        totalFemale: 490, totalMale: 540 },
-  { id: 10, diagnosis: "Typhoid fever",  totalFemale: 320, totalMale: 380 },
-  { id: 11, diagnosis: "Hypertension",   totalFemale: 260, totalMale: 310 },
-  { id: 12, diagnosis: "Plasmodiasis",   totalFemale: 400, totalMale: 455 },
-];
-
-// ── Dynamic stats per period ──────────────────────────────────
-const PERIOD_STATS: Record<Period, {
-  totalStaffs:    { value: string; subtitle: string };
-  patientsSeen:   { value: string; subtitle: string };
-  diagnosisCount: { value: string; subtitle: string };
-}> = {
-  Weekly: {
-    totalStaffs:    { value: "450",  subtitle: "Active staffs in the system"    },
-    patientsSeen:   { value: "50",   subtitle: "Patients diagnosed this week"   },
-    diagnosisCount: { value: "34",   subtitle: "Different type of diagnosis"    },
-  },
-  Monthly: {
-    totalStaffs:    { value: "450",  subtitle: "Active staffs in the system"    },
-    patientsSeen:   { value: "280",  subtitle: "Patients diagnosed this month"  },
-    diagnosisCount: { value: "89",   subtitle: "Different type of diagnosis"    },
-  },
-  Yearly: {
-    totalStaffs:    { value: "450",  subtitle: "Active staffs in the system"    },
-    patientsSeen:   { value: "3,240",subtitle: "Patients diagnosed this year"   },
-    diagnosisCount: { value: "156",  subtitle: "Different type of diagnosis"    },
-  },
-};
-
-const ITEMS_PER_PAGE = 11;
+type Period = "Weekly" | "Monthly";
 
 // ── Icons ─────────────────────────────────────────────────────
 function StaffIcon() {
@@ -113,7 +45,7 @@ function ReportIcon() {
 function StatCard({
   title, value, subtitle, icon,
 }: {
-  title: string; value: string; subtitle: string; icon: React.ReactNode;
+  title: string; value: React.ReactNode; subtitle: string; icon: React.ReactNode;
 }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-100 p-6 flex flex-col gap-3">
@@ -129,50 +61,73 @@ function StatCard({
   );
 }
 
+const ITEMS_PER_PAGE = 11;
+
 // ── Main Page ─────────────────────────────────────────────────
 export default function ReportsPage() {
-  const [period, setPeriod]           = useState<Period>("Weekly");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [period,       setPeriod]       = useState<Period>("Weekly");
+  const [currentPage, setCurrentPage]  = useState(1);
+  const [rows,         setRows]         = useState<DiagnosisRow[]>([]);
+  const [totalPages,   setTotalPages]   = useState(1);
+  const [totalPatients, setTotalPatients] = useState(0);
+  const [totalDiagnoses, setTotalDiagnoses] = useState(0);
+  const [loading,      setLoading]      = useState(true);
 
-  const data = period === "Weekly"
-    ? WEEKLY_DATA
-    : period === "Monthly"
-    ? MONTHLY_DATA
-    : YEARLY_DATA;
+  // Dashboard summary for stat cards
+  const [staffCount,   setStaffCount]   = useState<number | null>(null);
 
-  const totalPages = Math.max(1, Math.ceil(data.length / ITEMS_PER_PAGE));
-  const paginated  = data.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
+  useEffect(() => {
+    // Fetch staff count once
+    api.get<{ data: { total: number } }>("/api/v1/users/staff")
+      .then((res) => setStaffCount((res.data as any).staffs?.length ?? (res.data as any).total ?? 0))
+      .catch(() => setStaffCount(0));
+  }, []);
 
-  const summary = useMemo(() => {
-    const totalDiagnoses = new Set(data.map((d) => d.diagnosis)).size;
-    const totalPatients  = data.reduce((sum, d) => sum + d.totalFemale + d.totalMale, 0);
-    return { totalDiagnoses, totalPatients };
-  }, [data]);
+  useEffect(() => {
+    setLoading(true);
+    api.get<{
+      data: {
+        rows:          DiagnosisRow[];
+        totalPatients: number;
+        totalDiagnoses: number;
+        totalPages:    number;
+        currentPage:   number;
+      };
+    }>(`/api/v1/reports/diagnosis-summary?period=${period.toLowerCase()}&page=${currentPage}&limit=${ITEMS_PER_PAGE}`)
+      .then((res) => {
+        setRows(res.data.rows ?? []);
+        setTotalPatients(res.data.totalPatients ?? 0);
+        setTotalDiagnoses(res.data.totalDiagnoses ?? 0);
+        setTotalPages(res.data.totalPages ?? 1);
+      })
+      .catch(() => {
+        setRows([]);
+        setTotalPatients(0);
+        setTotalDiagnoses(0);
+        setTotalPages(1);
+      })
+      .finally(() => setLoading(false));
+  }, [period, currentPage]);
 
-  const periodLabel = period === "Weekly"
-    ? "This week"
-    : period === "Monthly"
-    ? "This month"
-    : "This year";
+  const periodLabel = period === "Weekly" ? "This week" : "This month";
 
   const handlePeriodChange = (val: Period) => {
     setPeriod(val);
     setCurrentPage(1);
   };
 
-  const handlePrint = () => window.print();
+  const summary = useMemo(() => ({
+    totalDiagnoses,
+    totalPatients,
+  }), [totalDiagnoses, totalPatients]);
 
-  const handleDownloadPdf = () => {
-    alert("PDF download will be available once the backend is connected.");
-  };
+  const handlePrint = () => window.print();
+  const handleDownloadPdf = () => alert("PDF download coming soon.");
 
   return (
     <div className="flex flex-col gap-6">
 
-      {/* ── Print header (hidden on screen, shows when printing) ── */}
+      {/* ── Print header ──────────────────────────────────────── */}
       <div className="hidden print:block mb-6">
         <h1 className="text-2xl font-bold text-slate-800">
           SAHCOMed — Diagnosis Summary Report
@@ -183,24 +138,24 @@ export default function ReportsPage() {
         <hr className="my-4 border-slate-200" />
       </div>
 
-      {/* ── Stat cards (hidden when printing) ─────────────────── */}
+      {/* ── Stat cards ────────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 print:hidden">
         <StatCard
           title="Total Staffs"
-          value={PERIOD_STATS[period].totalStaffs.value}
-          subtitle={PERIOD_STATS[period].totalStaffs.subtitle}
+          value={staffCount === null ? <LoadingSpinner size="sm" /> : String(staffCount)}
+          subtitle="Active staffs in the system"
           icon={<StaffIcon />}
         />
         <StatCard
           title="Patients seen"
-          value={PERIOD_STATS[period].patientsSeen.value}
-          subtitle={PERIOD_STATS[period].patientsSeen.subtitle}
+          value={loading ? <LoadingSpinner size="sm" /> : String(totalPatients)}
+          subtitle={`Patients diagnosed ${periodLabel.toLowerCase()}`}
           icon={<StaffIcon />}
         />
         <StatCard
           title="Diagnosis recorded"
-          value={PERIOD_STATS[period].diagnosisCount.value}
-          subtitle={PERIOD_STATS[period].diagnosisCount.subtitle}
+          value={loading ? <LoadingSpinner size="sm" /> : String(totalDiagnoses)}
+          subtitle="Different types of diagnosis"
           icon={<ReportIcon />}
         />
       </div>
@@ -208,11 +163,8 @@ export default function ReportsPage() {
       {/* ── Report table ──────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
 
-        {/* Table header bar — hidden when printing */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 print:hidden">
-          <h2 className="text-base font-bold text-slate-800">
-            Diagnosis summary report
-          </h2>
+          <h2 className="text-base font-bold text-slate-800">Diagnosis summary report</h2>
           <div className="flex items-center gap-3">
             <select
               value={period}
@@ -221,7 +173,6 @@ export default function ReportsPage() {
             >
               <option value="Weekly">Weekly</option>
               <option value="Monthly">Monthly</option>
-              <option value="Yearly">Yearly</option>
             </select>
             <button
               onClick={handlePrint}
@@ -238,50 +189,54 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Print-only table title */}
         <div className="hidden print:block px-6 py-4 border-b border-slate-200">
           <h2 className="text-base font-bold text-slate-800">
             Diagnosis Summary Report — {periodLabel}
           </h2>
         </div>
 
-        {/* Table */}
         <table className="w-full">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
-              <th className="text-left text-xs font-bold text-slate-600 uppercase tracking-wider px-6 py-4">
-                Diagnosis
-              </th>
-              <th className="text-left text-xs font-bold text-slate-600 uppercase tracking-wider px-6 py-4">
-                Total Female
-              </th>
-              <th className="text-left text-xs font-bold text-slate-600 uppercase tracking-wider px-6 py-4">
-                Total Male
-              </th>
-              <th className="text-left text-xs font-bold text-slate-600 uppercase tracking-wider px-6 py-4">
-                Total Number of Patients Treated
-              </th>
+              <th className="text-left text-xs font-bold text-slate-600 uppercase tracking-wider px-6 py-4">Diagnosis</th>
+              <th className="text-left text-xs font-bold text-slate-600 uppercase tracking-wider px-6 py-4">Total Female</th>
+              <th className="text-left text-xs font-bold text-slate-600 uppercase tracking-wider px-6 py-4">Total Male</th>
+              <th className="text-left text-xs font-bold text-slate-600 uppercase tracking-wider px-6 py-4">Total Patients Treated</th>
             </tr>
           </thead>
           <tbody>
-            {paginated.map((row, i) => (
-              <tr
-                key={row.id}
-                className={cn(
-                  "border-b border-slate-50 hover:bg-slate-50/80 transition-colors",
-                  i % 2 === 0 ? "bg-white" : "bg-slate-50/30"
-                )}
-              >
-                <td className="px-6 py-4 text-sm text-slate-700">{row.diagnosis}</td>
-                <td className="px-6 py-4 text-sm text-slate-500">{row.totalFemale}</td>
-                <td className="px-6 py-4 text-sm text-slate-500">{row.totalMale}</td>
-                <td className="px-6 py-4 text-sm text-slate-500">{row.totalFemale + row.totalMale}</td>
+            {loading ? (
+              <tr>
+                <td colSpan={4} className="py-12 text-center">
+                  <LoadingSpinner size="lg" />
+                </td>
               </tr>
-            ))}
+            ) : rows.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="py-12 text-center text-sm text-slate-400">
+                  No diagnosis data for this period.
+                </td>
+              </tr>
+            ) : (
+              rows.map((row, i) => (
+                <tr
+                  key={`${row.diagnosis}-${i}`}
+                  className={cn(
+                    "border-b border-slate-50 hover:bg-slate-50/80 transition-colors",
+                    i % 2 === 0 ? "bg-white" : "bg-slate-50/30"
+                  )}
+                >
+                  <td className="px-6 py-4 text-sm text-slate-700 capitalize">{row.diagnosis}</td>
+                  <td className="px-6 py-4 text-sm text-slate-500">{row.totalFemale}</td>
+                  <td className="px-6 py-4 text-sm text-slate-500">{row.totalMale}</td>
+                  <td className="px-6 py-4 text-sm text-slate-500">{row.totalPatients}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
 
-        {/* Pagination — hidden when printing */}
+        {/* Pagination */}
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 print:hidden">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
@@ -296,9 +251,7 @@ export default function ReportsPage() {
               onClick={() => setCurrentPage(page)}
               className={cn(
                 "w-8 h-8 rounded-lg text-sm font-medium transition-colors",
-                page === currentPage
-                  ? "bg-primary-500 text-white"
-                  : "text-slate-500 hover:bg-slate-100"
+                page === currentPage ? "bg-primary-500 text-white" : "text-slate-500 hover:bg-slate-100"
               )}
             >
               {page}
@@ -314,33 +267,33 @@ export default function ReportsPage() {
         </div>
       </div>
 
-   {/* ── Summary bar ────────────────────────────────────────── */}
-<div className="rounded-2xl border border-primary-200 bg-primary-50/30 px-8 py-5 print:hidden">
-  <div className="flex items-center justify-between flex-wrap gap-4">
-    <div>
-      <span className="text-sm text-slate-600">
-        <span className="font-semibold text-slate-800">Report period:</span>{" "}
-        {periodLabel}
-      </span>
+      {/* ── Summary bar ───────────────────────────────────────── */}
+      <div className="rounded-2xl border border-primary-200 bg-primary-50/30 px-8 py-5 print:hidden">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <span className="text-sm text-slate-600">
+              <span className="font-semibold text-slate-800">Report period:</span>{" "}
+              {periodLabel}
+            </span>
+          </div>
+          <div className="h-6 w-px bg-primary-200 hidden md:block" />
+          <div>
+            <span className="text-sm text-slate-600">
+              <span className="font-semibold text-slate-800">Total diagnoses:</span>{" "}
+              {summary.totalDiagnoses} different types
+            </span>
+          </div>
+          <div className="h-6 w-px bg-primary-200 hidden md:block" />
+          <div>
+            <span className="text-sm text-slate-600">
+              <span className="font-semibold text-slate-800">
+                Total patients treated {periodLabel.toLowerCase()}:
+              </span>{" "}
+              {summary.totalPatients} patients
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
-    <div className="h-6 w-px bg-primary-200 hidden md:block" />
-    <div>
-      <span className="text-sm text-slate-600">
-        <span className="font-semibold text-slate-800">Total diagnoses:</span>{" "}
-        {summary.totalDiagnoses} different types
-      </span>
-    </div>
-    <div className="h-6 w-px bg-primary-200 hidden md:block" />
-    <div>
-      <span className="text-sm text-slate-600">
-        <span className="font-semibold text-slate-800">
-          Total patients treated {periodLabel.toLowerCase()}:
-        </span>{" "}
-        {summary.totalPatients} patients
-      </span>
-    </div>
-  </div>
-</div>
-</div>
   );
 }

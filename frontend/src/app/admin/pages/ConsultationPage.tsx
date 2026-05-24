@@ -12,7 +12,7 @@ interface Consultation {
   patientName: string;
   staffNumber: string;
   department:  string;
-  status:      "waiting" | "in_consultation" | "completed" | "cancelled";
+  status:      "waiting" | "in_consultation" | "ready_for_medication" | "completed" | "cancelled";
   complaint:   string;
   diagnosis?:  string;
   vitals?: {
@@ -46,16 +46,18 @@ const ITEMS_PER_PAGE = 7;
 // ── Status Badge ──────────────────────────────────────────────
 function StatusBadge({ status }: { status: Consultation["status"] }) {
   const styles = {
-    waiting:         "bg-primary-50 text-primary-500",
-    in_consultation: "bg-blue-50 text-blue-500",
-    completed:       "bg-green-50 text-green-600",
-    cancelled:       "bg-red-50 text-red-500",
+    waiting:              "bg-primary-50 text-primary-500",
+    in_consultation:      "bg-blue-50 text-blue-500",
+    ready_for_medication: "bg-purple-50 text-purple-600",
+    completed:            "bg-green-50 text-green-600",
+    cancelled:            "bg-red-50 text-red-500",
   };
   const labels = {
-    waiting:         "Waiting",
-    in_consultation: "In consultation",
-    completed:       "Completed",
-    cancelled:       "Cancelled",
+    waiting:              "Waiting",
+    in_consultation:      "In consultation",
+    ready_for_medication: "Ready for medication",
+    completed:            "Completed",
+    cancelled:            "Cancelled",
   };
   return (
     <span className={cn(
@@ -405,8 +407,8 @@ export default function ConsultationPage() {
                         View
                       </button>
 
-                      {/* Administer — doctor has diagnosed but nurse hasn't dispensed yet */}
-                      {c.status === "in_consultation" && c.prescriptions.length > 0 && (
+                      {/* Administer — doctor has diagnosed (ready_for_medication) or legacy in_consultation with prescriptions */}
+                      {(c.status === "ready_for_medication" || (c.status === "in_consultation" && c.prescriptions.length > 0)) && (
                         <button
                           onClick={() => setAdministerTarget(c)}
                           className="h-8 px-4 rounded-lg bg-green-500 text-white text-xs font-semibold hover:bg-green-600 transition-colors"
@@ -415,7 +417,7 @@ export default function ConsultationPage() {
                         </button>
                       )}
 
-                      {/* Cancel — only when doctor hasn't diagnosed yet */}
+                      {/* Cancel — only before doctor has diagnosed */}
                       {(c.status === "waiting" || (c.status === "in_consultation" && c.prescriptions.length === 0)) && (
                         <button
                           onClick={() => setCancelTarget(c)}

@@ -16,24 +16,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
-// ── Mock Data (chart only — reports API not ready) ────────────
-const CHART_DATA = [
-  { day: "Monday",    value: 20 },
-  { day: "Tuesday",   value: 35 },
-  { day: "Wednesday", value: 30 },
-  { day: "Thursday",  value: 50 },
-  { day: "Friday",    value: 65 },
-  { day: "Saturday",  value: 80 },
-  { day: "Sunday",    value: 90 },
-];
-
-const MONTHLY_DATA = [
-  { day: "Week 1", value: 40 },
-  { day: "Week 2", value: 65 },
-  { day: "Week 3", value: 55 },
-  { day: "Week 4", value: 80 },
-];
-
+// ── Mock (notifications only — pending backend) ───────────────
 const NOTIFICATIONS = [
   { id: 1, title: "New consultation",   timeAgo: "10mins ago" },
   { id: 2, title: "Stock alert",        timeAgo: "10mins ago" },
@@ -42,18 +25,23 @@ const NOTIFICATIONS = [
 ];
 
 // ── Types ─────────────────────────────────────────────────────
-interface Medication {
+interface StockAlert {
   _id:      string;
   name:     string;
   quantity: number;
   status:   "in_stock" | "low_stock" | "out_of_stock";
 }
 
-interface Consultation {
+interface QueueItem {
   _id:         string;
   patientName: string;
   staffNumber: string;
-  status:      "waiting" | "in_consultation" | "completed" | "cancelled";
+  status:      string;
+}
+
+interface TrendPoint {
+  day:   string;
+  value: number;
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -67,10 +55,17 @@ function PatientAvatar({ name }: { name: string }) {
 }
 
 function QueueStatusBadge({ status }: { status: string }) {
-  if (status === "In consultation") {
+  if (status === "in_consultation") {
     return (
       <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-500 text-xs font-medium whitespace-nowrap">
         In consultation
+      </span>
+    );
+  }
+  if (status === "ready_for_medication") {
+    return (
+      <span className="px-3 py-1 rounded-full bg-green-50 text-green-600 text-xs font-medium whitespace-nowrap">
+        Ready for medication
       </span>
     );
   }
@@ -82,7 +77,7 @@ function QueueStatusBadge({ status }: { status: string }) {
 }
 
 function StockStatusBadge({ status }: { status: string }) {
-  return status === "Low" ? (
+  return status === "low_stock" || status === "out_of_stock" ? (
     <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-red-50 text-red-500 text-xs font-medium">
       ↓ Low
     </span>
@@ -226,78 +221,78 @@ function Calendar() {
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [period, setPeriod] = useState<"Weekly" | "Monthly">("Weekly");
-  const chartData = period === "Weekly" ? CHART_DATA : MONTHLY_DATA;
 
   // ── Real data ─────────────────────────────────────────────
-  const [totalPatients,   setTotalPatients]   = useState<number | null>(null);
-  const [seenToday,       setSeenToday]       = useState<number | null>(null);
-  const [totalMeds,       setTotalMeds]       = useState<number | null>(null);
-  const [stockMeds,       setStockMeds]       = useState<Medication[]>([]);
-  const [queue,           setQueue]           = useState<Consultation[]>([]);
-  const [stockLoading,    setStockLoading]    = useState(true);
-  const [queueLoading,    setQueueLoading]    = useState(true);
+  const [totalPatients, setTotalPatients] = useState<number | null>(null);
+  const [seenToday,     setSeenToday]     = useState<number | null>(null);
+  const [totalMeds,     setTotalMeds]     = useState<number | null>(null);
+  const [stockMeds,     setStockMeds]     = useState<StockAlert[]>([]);
+  const [queue,         setQueue]         = useState<QueueItem[]>([]);
+  const [chartData,     setChartData]     = useState<TrendPoint[]>([]);
+  const [dashLoading,   setDashLoading]   = useState(true);
+  const [stockLoading,  setStockLoading]  = useState(true);
+  const [chartLoading,  setChartLoading]  = useState(true);
 
   useEffect(() => {
-    const d = new Date();
-    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-    // Total patients + total medications
-    const fetchStats = async () => {
+    // Single call replaces all separate stat/queue/stock fetches
+    const fetchDashboard = async () => {
       try {
-        const [patientsRes, medsRes] = await Promise.all([
-          api.get<{ data: { total: number } }>("/v1/patients?limit=1"),
-          api.get<{ data: { total: number } }>("/v1/medications?limit=1"),
-        ]);
-        setTotalPatients(patientsRes.data.total ?? 0);
-        setTotalMeds(medsRes.data.total ?? 0);
+        const res = await api.get<{
+          data: {
+            totalPatients:      number;
+            patientsSeenToday:  number;
+            totalMedications:   number;
+            stockAlerts:        StockAlert[];
+            patientQueue:       QueueItem[];
+          };
+        }>("/api/v1/reports/dashboard");
+        setTotalPatients(res.data.totalPatients ?? 0);
+        setSeenToday(res.data.patientsSeenToday ?? 0);
+        setTotalMeds(res.data.totalMedications ?? 0);
+        setStockMeds(res.data.stockAlerts ?? []);
+        const active = (res.data.patientQueue ?? []).filter(
+          (c) => c.status === "waiting" || c.status === "in_consultation" || c.status === "ready_for_medication"
+        );
+        setQueue(active.slice(0, 5));
       } catch {
         setTotalPatients(0);
+        setSeenToday(0);
         setTotalMeds(0);
-      }
-    };
-
-    // Low/out of stock medications
-    const fetchStock = async () => {
-      try {
-        const res = await api.get<{ data: { medications: Medication[] } }>(
-          "/v1/medications?limit=10&sortBy=quantity"
-        );
-        setStockMeds(res.data.medications ?? []);
-      } catch {
         setStockMeds([]);
+        setQueue([]);
       } finally {
+        setDashLoading(false);
         setStockLoading(false);
       }
     };
 
-    // Today's consultations — derive both queue and seen-today count
-    const fetchQueue = async () => {
+    // Visit trend for chart
+    const fetchTrend = async () => {
       try {
-        const res = await api.get<{ data: { consultations: Consultation[] } }>(
-          `/v1/consultations?limit=100&date=${today}`
-        );
-        const all = res.data.consultations ?? [];
-        const active = all.filter(
-          (c) => c.status === "waiting" || c.status === "in_consultation"
-        );
-        const seen = all.filter((c) => c.status === "completed").length;
-        setQueue(active.slice(0, 5));
-        setSeenToday(seen);
+        const res = await api.get<{
+          data: {
+            period: string;
+            trend: { date: string; count: number }[];
+          };
+        }>(`/api/v1/reports/visit-trend?period=${period.toLowerCase()}`);
+        const mapped = (res.data.trend ?? []).map((t) => ({
+          day:   format(new Date(t.date), period === "Weekly" ? "EEE" : "d MMM"),
+          value: t.count,
+        }));
+        setChartData(mapped);
       } catch {
-        setQueue([]);
-        setSeenToday(0);
+        setChartData([]);
       } finally {
-        setQueueLoading(false);
+        setChartLoading(false);
       }
     };
 
-    fetchStats();
-    fetchStock();
-    fetchQueue();
-  }, []);
+    fetchDashboard();
+    fetchTrend();
+  }, [period]);
 
   const statValue = (val: number | null) =>
-    val === null ? <LoadingSpinner size="sm" /> : String(val);
+    val === null || dashLoading ? <LoadingSpinner size="sm" /> : String(val);
 
   return (
     <div className="flex gap-6">
@@ -343,25 +338,34 @@ export default function DashboardPage() {
               <option>Monthly</option>
             </select>
           </div>
-          <p className="text-xs text-slate-400 mb-3">Average number of staffs seen in a week</p>
+          <p className="text-xs text-slate-400 mb-3">Number of patient visits per day</p>
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-2xl font-bold text-primary-500">87%</span>
             <TrendingUp size={18} className="text-primary-500" />
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={chartData} margin={{ top: 0, right: 0, left: -30, bottom: 0 }}>
-              <defs>
-                <linearGradient id="adminGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#FF7221" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#FF7221" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} ticks={[10, 20, 50, 100]} />
-              <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "12px" }} />
-              <Area type="monotone" dataKey="value" stroke="#FF7221" strokeWidth={2.5} fill="url(#adminGrad)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          {chartLoading ? (
+            <div className="flex items-center justify-center h-[200px]">
+              <LoadingSpinner size="md" />
+            </div>
+          ) : chartData.length === 0 ? (
+            <div className="flex items-center justify-center h-[200px] text-sm text-slate-400">
+              No visit data for this period.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={chartData} margin={{ top: 0, right: 0, left: -30, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="adminGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#FF7221" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#FF7221" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "12px" }} />
+                <Area type="monotone" dataKey="value" stroke="#FF7221" strokeWidth={2.5} fill="url(#adminGrad)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Stock Alert */}
@@ -372,7 +376,7 @@ export default function DashboardPage() {
               <LoadingSpinner size="md" />
             </div>
           ) : stockMeds.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-8">No medications found.</p>
+            <p className="text-sm text-slate-400 text-center py-8">All medications are well stocked.</p>
           ) : (
             <table className="w-full">
               <thead>
@@ -398,9 +402,7 @@ export default function DashboardPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-500">{item.quantity} units</td>
                     <td className="px-4 py-3">
-                      <StockStatusBadge status={
-                        item.status === "low_stock" || item.status === "out_of_stock" ? "Low" : "Normal"
-                      } />
+                      <StockStatusBadge status={item.status} />
                     </td>
                   </tr>
                 ))}
@@ -453,7 +455,7 @@ export default function DashboardPage() {
               Show more
             </button>
           </div>
-          {queueLoading ? (
+          {dashLoading ? (
             <div className="flex items-center justify-center py-6">
               <LoadingSpinner size="md" />
             </div>
@@ -467,10 +469,7 @@ export default function DashboardPage() {
                   <span className="text-sm font-medium text-slate-700 flex-1 truncate">
                     {patient.patientName}
                   </span>
-                  <span className="text-xs text-slate-400 shrink-0">{patient.staffNumber}</span>
-                  <QueueStatusBadge status={
-                    patient.status === "in_consultation" ? "In consultation" : "Waiting"
-                  } />
+                  <QueueStatusBadge status={patient.status} />
                 </div>
               ))}
             </div>
