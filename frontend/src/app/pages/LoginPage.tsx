@@ -350,10 +350,11 @@ function SignUpView({
 }) {
   const [form, setForm] = useState({
     fullName: "", email: "", roleField: role ?? "nurse",
-    address: "", password: "", confirm: "", phone: "",
+    password: "", confirm: "", phone: "",
   });
   const [errors, setErrors]   = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   const set = (field: string, value: string) => {
     setForm((p) => ({ ...p, [field]: value }));
@@ -367,7 +368,6 @@ function SignUpView({
     else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = "Enter a valid email";
     if (!form.phone.trim())      e.phone      = "Phone number is required";
     if (!form.roleField.trim())  e.roleField  = "Role is required";
-    if (!form.address.trim())    e.address    = "Address is required";
     if (!form.password.trim())   e.password   = "Password is required";
     else if (form.password.length < 8) e.password = "Password must be at least 8 characters";
     if (!form.confirm.trim())    e.confirm    = "Please confirm your password";
@@ -387,7 +387,8 @@ function SignUpView({
         role:        form.roleField,
         phoneNumber: form.phone,
       });
-      onGoToSignIn();
+      setSuccess(true);
+      setTimeout(() => onGoToSignIn(), 2000);
     } catch (error: any) {
       setErrors({ email: error.message ?? "Registration failed" });
     } finally {
@@ -448,13 +449,6 @@ function SignUpView({
           {errors.roleField && <p className="text-xs text-red-500">{errors.roleField}</p>}
         </div>
 
-        <TextInput
-          label="Address"
-          placeholder="Enter address"
-          value={form.address}
-          onChange={(v) => set("address", v)}
-          error={errors.address}
-        />
         <PasswordInput
           label="Password"
           placeholder="Enter password"
@@ -469,6 +463,15 @@ function SignUpView({
           onChange={(v) => set("confirm", v)}
           error={errors.confirm}
         />
+
+        {success && (
+          <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-green-700 text-sm font-medium">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="shrink-0">
+              <path d="M5 13l4 4L19 7" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Account created! Redirecting to sign in...
+          </div>
+        )}
 
         <OrangeButton label="Sign up" onClick={handleSignUp} loading={loading} />
 
