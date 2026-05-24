@@ -177,73 +177,88 @@ export default function DoctorDashboardPage() {
   const [chartLoading,    setChartLoading]    = useState(true);
   const [notifications,   setNotifications]   = useState<ApiNotification[]>([]);
 
-  useEffect(() => {
-    // Active patient queue
-    const fetchQueue = async () => {
-      try {
-        const res = await api.get<{ data: { consultations: Consultation[] } }>(
-          "/v1/consultations?limit=100"
-        );
-        const active = (res.data.consultations ?? []).filter(
-          (c) => c.status === "waiting" || c.status === "in_consultation"
-        );
-        setQueue(active.slice(0, 4));
-      } catch {
-        setQueue([]);
-      } finally {
-        setQueueLoading(false);
-      }
-    };
+  // ── Fetch helpers (called on mount + on SSE event) ────────────
+  const fetchQueue = async () => {
+    try {
+      const res = await api.get<{ data: { consultations: Consultation[] } }>(
+        "/v1/consultations?limit=100"
+      );
+      const active = (res.data.consultations ?? []).filter(
+        (c) => c.status === "waiting" || c.status === "in_consultation"
+      );
+      setQueue(active.slice(0, 4));
+    } catch {
+      setQueue([]);
+    } finally {
+      setQueueLoading(false);
+    }
+  };
 
-    // Recent completed consultations
-    const fetchRecent = async () => {
-      try {
-        const res = await api.get<{ data: { consultations: Consultation[] } }>(
-          "/v1/consultations?limit=100"
-        );
-        const completed = (res.data.consultations ?? []).filter(
-          (c) => c.status === "completed"
-        );
-        setRecentDone(completed.slice(0, 4));
-      } catch {
-        setRecentDone([]);
-      } finally {
-        setRecentLoading(false);
-      }
-    };
+  const fetchRecent = async () => {
+    try {
+      const res = await api.get<{ data: { consultations: Consultation[] } }>(
+        "/v1/consultations?limit=100"
+      );
+      const completed = (res.data.consultations ?? []).filter(
+        (c) => c.status === "completed"
+      );
+      setRecentDone(completed.slice(0, 4));
+    } catch {
+      setRecentDone([]);
+    } finally {
+      setRecentLoading(false);
+    }
+  };
 
-    // Notifications
-    const fetchNotifications = async () => {
-      try {
-        const res = await api.get<{ data: ApiNotification[] }>("/api/v1/notifications");
-        const all = Array.isArray(res.data) ? res.data as unknown as ApiNotification[] : (res.data as any)?.notifications ?? [];
-        setNotifications(filterDoctorNotifs(all).slice(0, 5));
-      } catch {
-        setNotifications([]);
-      }
-    };
+  const fetchNotifications = async () => {
+    try {
+      const res = await api.get<{ data: ApiNotification[] }>("/api/v1/notifications");
+      const all = Array.isArray(res.data) ? res.data as unknown as ApiNotification[] : (res.data as any)?.notifications ?? [];
+      setNotifications(filterDoctorNotifs(all).slice(0, 5));
+    } catch {
+      setNotifications([]);
+    }
+  };
 
-    fetchQueue();
-    fetchRecent();
-    fetchNotifications();
-  }, []);
-
-  // Chart data — refetches when period changes
-  useEffect(() => {
+  const fetchTrend = (p: "Weekly" | "Monthly") => {
     setChartLoading(true);
     api.get<{
       data: { period: string; trend: { date: string; count: number }[] };
-    }>(`/api/v1/reports/visit-trend?period=${period.toLowerCase()}`)
+    }>(`/api/v1/reports/visit-trend?period=${p.toLowerCase()}`)
       .then((res) => {
         const mapped = (res.data.trend ?? []).map((t) => ({
-          day:   format(new Date(t.date), period === "Weekly" ? "EEE" : "d MMM"),
+          day:   format(new Date(t.date), p === "Weekly" ? "EEE" : "d MMM"),
           value: t.count,
         }));
         setChartData(mapped);
       })
       .catch(() => setChartData([]))
       .finally(() => setChartLoading(false));
+  };
+
+  const refreshAll = () => {
+    fetchQueue();
+    fetchRecent();
+    fetchNotifications();
+  };
+
+  // Initial load
+  useEffect(() => {
+    fetchQueue();
+    fetchRecent();
+    fetchNotifications();
+  }, []);
+
+  // Chart re-fetches when period changes
+  useEffect(() => {
+    fetchTrend(period);
   }, [period]);
+
+  // Re-fetch queue + notifications whenever a new notification arrives via SSE
+  useEffect(() => {
+    window.addEventListener("sahcomed:notification", refreshAll);
+    return () => window.removeEventListener("sahcomed:notification", refreshAll);
+  }, []);
 
   const timeAgo = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();

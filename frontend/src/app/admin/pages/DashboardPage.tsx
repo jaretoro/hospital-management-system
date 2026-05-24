@@ -252,75 +252,85 @@ export default function DashboardPage() {
   const [stockLoading,  setStockLoading]  = useState(true);
   const [chartLoading,  setChartLoading]  = useState(true);
 
-  useEffect(() => {
-    // Single call replaces all separate stat/queue/stock fetches
-    const fetchDashboard = async () => {
-      try {
-        const res = await api.get<{
-          data: {
-            totalPatients:      number;
-            patientsSeenToday:  number;
-            totalMedications:   number;
-            stockAlerts:        StockAlert[];
-            patientQueue:       QueueItem[];
-          };
-        }>("/api/v1/reports/dashboard");
-        setTotalPatients(res.data.totalPatients ?? 0);
-        setSeenToday(res.data.patientsSeenToday ?? 0);
-        setTotalMeds(res.data.totalMedications ?? 0);
-        setStockMeds(res.data.stockAlerts ?? []);
-        const active = (res.data.patientQueue ?? []).filter(
-          (c) => c.status === "waiting" || c.status === "in_consultation" || c.status === "ready_for_medication"
-        );
-        setQueue(active.slice(0, 5));
-      } catch {
-        setTotalPatients(0);
-        setSeenToday(0);
-        setTotalMeds(0);
-        setStockMeds([]);
-        setQueue([]);
-      } finally {
-        setDashLoading(false);
-        setStockLoading(false);
-      }
-    };
+  // ── Fetch helpers (called on mount + on SSE event) ────────────
+  const fetchDashboard = async () => {
+    try {
+      const res = await api.get<{
+        data: {
+          totalPatients:      number;
+          patientsSeenToday:  number;
+          totalMedications:   number;
+          stockAlerts:        StockAlert[];
+          patientQueue:       QueueItem[];
+        };
+      }>("/api/v1/reports/dashboard");
+      setTotalPatients(res.data.totalPatients ?? 0);
+      setSeenToday(res.data.patientsSeenToday ?? 0);
+      setTotalMeds(res.data.totalMedications ?? 0);
+      setStockMeds(res.data.stockAlerts ?? []);
+      const active = (res.data.patientQueue ?? []).filter(
+        (c) => c.status === "waiting" || c.status === "in_consultation" || c.status === "ready_for_medication"
+      );
+      setQueue(active.slice(0, 5));
+    } catch {
+      setTotalPatients(0);
+      setSeenToday(0);
+      setTotalMeds(0);
+      setStockMeds([]);
+      setQueue([]);
+    } finally {
+      setDashLoading(false);
+      setStockLoading(false);
+    }
+  };
 
-    // Visit trend for chart
-    const fetchTrend = async () => {
-      try {
-        const res = await api.get<{
-          data: {
-            period: string;
-            trend: { date: string; count: number }[];
-          };
-        }>(`/api/v1/reports/visit-trend?period=${period.toLowerCase()}`);
-        const mapped = (res.data.trend ?? []).map((t) => ({
-          day:   format(new Date(t.date), period === "Weekly" ? "EEE" : "d MMM"),
-          value: t.count,
-        }));
-        setChartData(mapped);
-      } catch {
-        setChartData([]);
-      } finally {
-        setChartLoading(false);
-      }
-    };
+  const fetchTrend = async (p: "Weekly" | "Monthly") => {
+    try {
+      const res = await api.get<{
+        data: {
+          period: string;
+          trend: { date: string; count: number }[];
+        };
+      }>(`/api/v1/reports/visit-trend?period=${p.toLowerCase()}`);
+      const mapped = (res.data.trend ?? []).map((t) => ({
+        day:   format(new Date(t.date), p === "Weekly" ? "EEE" : "d MMM"),
+        value: t.count,
+      }));
+      setChartData(mapped);
+    } catch {
+      setChartData([]);
+    } finally {
+      setChartLoading(false);
+    }
+  };
 
-    // Notifications for sidebar preview
-    const fetchNotifications = async () => {
-      try {
-        const res = await api.get<{ data: ApiNotification[] }>("/api/v1/notifications");
-        const all = Array.isArray(res.data) ? res.data as unknown as ApiNotification[] : (res.data as any)?.notifications ?? [];
-        setNotifications(filterNurseNotifs(all).slice(0, 5));
-      } catch {
-        setNotifications([]);
-      }
-    };
+  const fetchNotifications = async () => {
+    try {
+      const res = await api.get<{ data: ApiNotification[] }>("/api/v1/notifications");
+      const all = Array.isArray(res.data) ? res.data as unknown as ApiNotification[] : (res.data as any)?.notifications ?? [];
+      setNotifications(filterNurseNotifs(all).slice(0, 5));
+    } catch {
+      setNotifications([]);
+    }
+  };
 
+  const refreshAll = () => {
     fetchDashboard();
-    fetchTrend();
+    fetchNotifications();
+  };
+
+  // Initial load + re-fetch when period changes
+  useEffect(() => {
+    fetchDashboard();
+    fetchTrend(period);
     fetchNotifications();
   }, [period]);
+
+  // Re-fetch stats + notifications whenever a new notification arrives via SSE
+  useEffect(() => {
+    window.addEventListener("sahcomed:notification", refreshAll);
+    return () => window.removeEventListener("sahcomed:notification", refreshAll);
+  }, []);
 
   const statValue = (val: number | null) =>
     val === null || dashLoading ? <LoadingSpinner size="sm" /> : String(val);

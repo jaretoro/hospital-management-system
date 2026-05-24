@@ -115,13 +115,19 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
   const [marking,       setMarking]       = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (broadcast = false) => {
     try {
       const res = await api.get<{
         data: { notifications: Notification[]; unreadCount: number };
       }>("/v1/notifications");
       const filtered = filterByRole(res.data.notifications ?? [], isDoctor);
-      setNotifications(filtered);
+      setNotifications((prev) => {
+        // If there are new notifications, broadcast refresh event
+        if (broadcast && filtered.length > 0 && filtered[0]._id !== prev[0]?._id) {
+          window.dispatchEvent(new CustomEvent("sahcomed:notification"));
+        }
+        return filtered;
+      });
       setUnreadCount(filtered.filter((n) => !n.isRead).length);
     } catch {
       // silently fail
@@ -174,6 +180,8 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
               if (!notification.isRead) {
                 setUnreadCount((prev) => prev + 1);
               }
+              // Broadcast so dashboards can re-fetch their data
+              window.dispatchEvent(new CustomEvent("sahcomed:notification"));
             } catch {
               // ignore malformed events
             }
@@ -182,7 +190,7 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
       } catch {
         // Stream failed — fall back to polling
         if (!fallbackInterval && !abortController.signal.aborted) {
-          fallbackInterval = setInterval(fetchNotifications, 10000);
+          fallbackInterval = setInterval(() => fetchNotifications(true), 10000);
         }
       }
     };
