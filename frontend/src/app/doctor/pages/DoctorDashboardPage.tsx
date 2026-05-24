@@ -19,31 +19,36 @@ import { api } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import stethoscope from "@/assets/images/stethoscope.png";
 
-// ── Mock Data (chart + notifications — reports API not ready) ─
-const CHART_DATA = [
-  { day: "Monday",    value: 20 },
-  { day: "Tuesday",   value: 35 },
-  { day: "Wednesday", value: 30 },
-  { day: "Thursday",  value: 50 },
-  { day: "Friday",    value: 65 },
-  { day: "Saturday",  value: 80 },
-  { day: "Sunday",    value: 90 },
-];
+// ── Notification helpers ──────────────────────────────────────
+interface ApiNotification {
+  _id:       string;
+  type:      string;
+  message:   string;
+  isRead:    boolean;
+  createdAt: string;
+}
 
-const MONTHLY_DATA = [
-  { day: "Week 1", value: 40 },
-  { day: "Week 2", value: 65 },
-  { day: "Week 3", value: 55 },
-  { day: "Week 4", value: 80 },
-];
+interface TrendPoint {
+  day:   string;
+  value: number;
+}
 
-const NOTIFICATIONS = [
-  { id: 1, title: "New consultation",   timeAgo: "10mins ago" },
-  { id: 2, title: "Stock alert",        timeAgo: "10mins ago" },
-  { id: 3, title: "Medication restock", timeAgo: "10mins ago" },
-  { id: 4, title: "New consultation",   timeAgo: "10mins ago" },
-  { id: 5, title: "New consultation",   timeAgo: "10mins ago" },
-];
+function timeAgoStr(dateStr: string): string {
+  const diff  = Date.now() - new Date(dateStr).getTime();
+  const mins  = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days  = Math.floor(diff / 86400000);
+  if (mins  < 1)  return "Just now";
+  if (mins  < 60) return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  return `${days}d ago`;
+}
+
+// Doctors only see consultation/vitals-related notifications
+const DOCTOR_TYPES = ["new_consultation", "vitals_sent", "diagnosis"];
+function filterDoctorNotifs(items: ApiNotification[]) {
+  return items.filter((n) => DOCTOR_TYPES.includes(n.type));
+}
 
 // ── Types ─────────────────────────────────────────────────────
 interface Consultation {
@@ -159,7 +164,6 @@ function NotificationIcon() {
 export default function DoctorDashboardPage() {
   const navigate  = useNavigate();
   const [period, setPeriod] = useState<"Weekly" | "Monthly">("Weekly");
-  const chartData = period === "Weekly" ? CHART_DATA : MONTHLY_DATA;
 
   const user     = getUser();
   const greeting = getGreeting(user?.name ?? "Doctor");
@@ -169,6 +173,9 @@ export default function DoctorDashboardPage() {
   const [recentDone,      setRecentDone]      = useState<Consultation[]>([]);
   const [queueLoading,    setQueueLoading]    = useState(true);
   const [recentLoading,   setRecentLoading]   = useState(true);
+  const [chartData,       setChartData]       = useState<TrendPoint[]>([]);
+  const [chartLoading,    setChartLoading]    = useState(true);
+  const [notifications,   setNotifications]   = useState<ApiNotification[]>([]);
 
   useEffect(() => {
     // Active patient queue
@@ -205,9 +212,38 @@ export default function DoctorDashboardPage() {
       }
     };
 
+    // Notifications
+    const fetchNotifications = async () => {
+      try {
+        const res = await api.get<{ data: ApiNotification[] }>("/api/v1/notifications");
+        const all = Array.isArray(res.data) ? res.data as unknown as ApiNotification[] : (res.data as any)?.notifications ?? [];
+        setNotifications(filterDoctorNotifs(all).slice(0, 5));
+      } catch {
+        setNotifications([]);
+      }
+    };
+
     fetchQueue();
     fetchRecent();
+    fetchNotifications();
   }, []);
+
+  // Chart data — refetches when period changes
+  useEffect(() => {
+    setChartLoading(true);
+    api.get<{
+      data: { period: string; trend: { date: string; count: number }[] };
+    }>(`/api/v1/reports/visit-trend?period=${period.toLowerCase()}`)
+      .then((res) => {
+        const mapped = (res.data.trend ?? []).map((t) => ({
+          day:   format(new Date(t.date), period === "Weekly" ? "EEE" : "d MMM"),
+          value: t.count,
+        }));
+        setChartData(mapped);
+      })
+      .catch(() => setChartData([]))
+      .finally(() => setChartLoading(false));
+  }, [period]);
 
   const timeAgo = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -258,28 +294,37 @@ export default function DoctorDashboardPage() {
               <option>Monthly</option>
             </select>
           </div>
-          <p className="text-xs text-slate-400 mb-3">Average number of staffs seen in a week</p>
+          <p className="text-xs text-slate-400 mb-3">Number of patient visits per day</p>
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-2xl font-bold text-primary-500">87%</span>
             <TrendingUp size={18} className="text-primary-500" />
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={chartData} margin={{ top: 0, right: 0, left: -30, bottom: 0 }}>
-              <defs>
-                <linearGradient id="doctorGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#FF7221" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#FF7221" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} ticks={[10, 20, 50, 100]} />
-              <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "12px" }} />
-              <Area type="monotone" dataKey="value" stroke="#FF7221" strokeWidth={2.5} fill="url(#doctorGrad)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          {chartLoading ? (
+            <div className="flex items-center justify-center h-[200px]">
+              <LoadingSpinner size="md" />
+            </div>
+          ) : chartData.length === 0 ? (
+            <div className="flex items-center justify-center h-[200px] text-sm text-slate-400">
+              No visit data for this period.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={chartData} margin={{ top: 0, right: 0, left: -30, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="doctorGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#FF7221" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#FF7221" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "12px" }} />
+                <Area type="monotone" dataKey="value" stroke="#FF7221" strokeWidth={2.5} fill="url(#doctorGrad)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
-        {/* Notifications — mock until backend delivers */}
+        {/* Notifications — real data */}
         <div className="w-72 shrink-0 bg-white rounded-2xl border border-slate-100 p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-bold text-slate-800">Notifications</h2>
@@ -290,19 +335,29 @@ export default function DoctorDashboardPage() {
               Show more
             </button>
           </div>
-          <div className="flex flex-col gap-1">
-            {NOTIFICATIONS.map((notif) => (
-              <button
-                key={notif.id}
-                className="flex items-center gap-3 w-full hover:bg-slate-50 rounded-xl px-2 py-2.5 transition-colors"
-              >
-                <NotificationIcon />
-                <p className="text-sm font-medium text-slate-700 flex-1 text-left">{notif.title}</p>
-                <span className="text-xs text-slate-400 shrink-0">{notif.timeAgo}</span>
-                <ChevronRight size={14} className="text-slate-300 shrink-0" />
-              </button>
-            ))}
-          </div>
+          {notifications.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-4">No notifications yet.</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {notifications.map((notif) => (
+                <button
+                  key={notif._id}
+                  onClick={() => navigate("/doctor/notifications")}
+                  className="flex items-center gap-3 w-full hover:bg-slate-50 rounded-xl px-2 py-2.5 transition-colors"
+                >
+                  <NotificationIcon />
+                  <p className={cn(
+                    "text-sm flex-1 text-left truncate",
+                    notif.isRead ? "text-slate-500 font-normal" : "text-slate-700 font-medium"
+                  )}>
+                    {notif.message}
+                  </p>
+                  <span className="text-xs text-slate-400 shrink-0">{timeAgoStr(notif.createdAt)}</span>
+                  <ChevronRight size={14} className="text-slate-300 shrink-0" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

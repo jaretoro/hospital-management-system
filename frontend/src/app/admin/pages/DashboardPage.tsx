@@ -16,15 +16,33 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
-// ── Mock (notifications only — pending backend) ───────────────
-const NOTIFICATIONS = [
-  { id: 1, title: "New consultation",   timeAgo: "10mins ago" },
-  { id: 2, title: "Stock alert",        timeAgo: "10mins ago" },
-  { id: 3, title: "Medication restock", timeAgo: "10mins ago" },
-  { id: 4, title: "Medication restock", timeAgo: "10mins ago" },
-];
+// ── Notification helpers ──────────────────────────────────────
+function timeAgoStr(dateStr: string): string {
+  const diff  = Date.now() - new Date(dateStr).getTime();
+  const mins  = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days  = Math.floor(diff / 86400000);
+  if (mins  < 1)  return "Just now";
+  if (mins  < 60) return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  return `${days}d ago`;
+}
+
+// Role-based filtering — nurses see everything; doctors skip stock alerts
+const NURSE_TYPES = ["new_consultation", "vitals_sent", "stock_alert", "medication_restock", "new_patient"];
+function filterNurseNotifs(items: ApiNotification[]) {
+  return items.filter((n) => NURSE_TYPES.includes(n.type));
+}
 
 // ── Types ─────────────────────────────────────────────────────
+interface ApiNotification {
+  _id:       string;
+  type:      string;
+  message:   string;
+  isRead:    boolean;
+  createdAt: string;
+}
+
 interface StockAlert {
   _id:      string;
   name:     string;
@@ -229,6 +247,7 @@ export default function DashboardPage() {
   const [stockMeds,     setStockMeds]     = useState<StockAlert[]>([]);
   const [queue,         setQueue]         = useState<QueueItem[]>([]);
   const [chartData,     setChartData]     = useState<TrendPoint[]>([]);
+  const [notifications, setNotifications] = useState<ApiNotification[]>([]);
   const [dashLoading,   setDashLoading]   = useState(true);
   const [stockLoading,  setStockLoading]  = useState(true);
   const [chartLoading,  setChartLoading]  = useState(true);
@@ -287,8 +306,20 @@ export default function DashboardPage() {
       }
     };
 
+    // Notifications for sidebar preview
+    const fetchNotifications = async () => {
+      try {
+        const res = await api.get<{ data: ApiNotification[] }>("/api/v1/notifications");
+        const all = Array.isArray(res.data) ? res.data as unknown as ApiNotification[] : (res.data as any)?.notifications ?? [];
+        setNotifications(filterNurseNotifs(all).slice(0, 5));
+      } catch {
+        setNotifications([]);
+      }
+    };
+
     fetchDashboard();
     fetchTrend();
+    fetchNotifications();
   }, [period]);
 
   const statValue = (val: number | null) =>
@@ -418,7 +449,7 @@ export default function DashboardPage() {
         {/* Calendar */}
         <Calendar />
 
-        {/* Notifications — mock until backend delivers */}
+        {/* Notifications — real data */}
         <div className="bg-white rounded-2xl border border-slate-100 p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-bold text-slate-800">Notifications</h2>
@@ -429,19 +460,29 @@ export default function DashboardPage() {
               Show more
             </button>
           </div>
-          <div className="flex flex-col gap-1">
-            {NOTIFICATIONS.map((notif) => (
-              <button
-                key={notif.id}
-                className="flex items-center gap-3 w-full hover:bg-slate-50 rounded-xl px-2 py-2.5 transition-colors"
-              >
-                <NotificationIcon type={notif.title} />
-                <p className="text-sm font-medium text-slate-700 flex-1 text-left">{notif.title}</p>
-                <span className="text-xs text-slate-400 shrink-0">{notif.timeAgo}</span>
-                <ChevronRightIcon size={14} className="text-slate-300 shrink-0" />
-              </button>
-            ))}
-          </div>
+          {notifications.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-4">No notifications yet.</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {notifications.map((notif) => (
+                <button
+                  key={notif._id}
+                  onClick={() => navigate("/admin/notifications")}
+                  className="flex items-center gap-3 w-full hover:bg-slate-50 rounded-xl px-2 py-2.5 transition-colors"
+                >
+                  <NotificationIcon type={notif.type} />
+                  <p className={cn(
+                    "text-sm flex-1 text-left truncate",
+                    notif.isRead ? "text-slate-500 font-normal" : "text-slate-700 font-medium"
+                  )}>
+                    {notif.message}
+                  </p>
+                  <span className="text-xs text-slate-400 shrink-0">{timeAgoStr(notif.createdAt)}</span>
+                  <ChevronRightIcon size={14} className="text-slate-300 shrink-0" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Patient Queue — real data */}
