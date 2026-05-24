@@ -78,7 +78,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     // Fetch staff count once
-    api.get<{ data: { total: number } }>("/api/v1/users/staff")
+    api.get<{ data: { total: number } }>("/v1/users/staff")
       .then((res) => setStaffCount((res.data as any).staffs?.length ?? (res.data as any).total ?? 0))
       .catch(() => setStaffCount(0));
   }, []);
@@ -93,7 +93,7 @@ export default function ReportsPage() {
         totalPages:    number;
         currentPage:   number;
       };
-    }>(`/api/v1/reports/diagnosis-summary?period=${period.toLowerCase()}&page=${currentPage}&limit=${ITEMS_PER_PAGE}`)
+    }>(`/v1/reports/diagnosis-summary?period=${period.toLowerCase()}&page=${currentPage}&limit=${ITEMS_PER_PAGE}`)
       .then((res) => {
         setRows(res.data.rows ?? []);
         setTotalPatients(res.data.totalPatients ?? 0);

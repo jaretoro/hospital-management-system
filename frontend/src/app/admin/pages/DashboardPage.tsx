@@ -263,7 +263,7 @@ export default function DashboardPage() {
           stockAlerts:        StockAlert[];
           patientQueue:       QueueItem[];
         };
-      }>("/api/v1/reports/dashboard");
+      }>("/v1/reports/dashboard");
       setTotalPatients(res.data.totalPatients ?? 0);
       setSeenToday(res.data.patientsSeenToday ?? 0);
       setTotalMeds(res.data.totalMedications ?? 0);
@@ -291,7 +291,7 @@ export default function DashboardPage() {
           period: string;
           trend: { date: string; count: number }[];
         };
-      }>(`/api/v1/reports/visit-trend?period=${p.toLowerCase()}`);
+      }>(`/v1/reports/visit-trend?period=${p.toLowerCase()}`);
       const mapped = (res.data.trend ?? []).map((t) => ({
         day:   format(new Date(t.date), p === "Weekly" ? "EEE" : "d MMM"),
         value: t.count,
@@ -306,8 +306,8 @@ export default function DashboardPage() {
 
   const fetchNotifications = async () => {
     try {
-      const res = await api.get<{ data: ApiNotification[] }>("/api/v1/notifications");
-      const all = Array.isArray(res.data) ? res.data as unknown as ApiNotification[] : (res.data as any)?.notifications ?? [];
+      const res = await api.get<{ data: { notifications: ApiNotification[]; unreadCount: number } }>("/v1/notifications");
+      const all = res.data.notifications ?? [];
       setNotifications(filterNurseNotifs(all).slice(0, 5));
     } catch {
       setNotifications([]);
