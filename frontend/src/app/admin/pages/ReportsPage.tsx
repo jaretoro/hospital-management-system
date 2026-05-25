@@ -122,7 +122,14 @@ export default function ReportsPage() {
   }), [totalDiagnoses, totalPatients]);
 
   const handlePrint = () => window.print();
-  const handleDownloadPdf = () => alert("PDF download coming soon.");
+  const handleDownloadPdf = () => {
+    const BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
+    const token = localStorage.getItem("token");
+    window.open(
+      `${BASE_URL}/v1/reports/download-pdf?period=${period.toLowerCase()}${token ? `&token=${token}` : ""}`,
+      "_blank"
+    );
+  };
 
   return (
     <div className="flex flex-col gap-6">
