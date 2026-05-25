@@ -326,10 +326,14 @@ export default function DashboardPage() {
     fetchNotifications();
   }, [period]);
 
-  // Re-fetch stats + notifications whenever a new notification arrives via SSE
+  // Re-fetch when new notification arrives (SSE) or read status changes (bell/page)
   useEffect(() => {
     window.addEventListener("sahcomed:notification", refreshAll);
-    return () => window.removeEventListener("sahcomed:notification", refreshAll);
+    window.addEventListener("sahcomed:read-updated", fetchNotifications);
+    return () => {
+      window.removeEventListener("sahcomed:notification", refreshAll);
+      window.removeEventListener("sahcomed:read-updated", fetchNotifications);
+    };
   }, []);
 
   const statValue = (val: number | null) =>

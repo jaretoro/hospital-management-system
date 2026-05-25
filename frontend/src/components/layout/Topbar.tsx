@@ -116,6 +116,13 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
     return () => window.removeEventListener("sahcomed:profile-updated", handleProfileUpdate);
   }, []);
 
+  // Re-fetch when NotificationsPage marks something as read (keeps bell count in sync)
+  useEffect(() => {
+    const handler = () => fetchNotifications();
+    window.addEventListener("sahcomed:read-updated", handler);
+    return () => window.removeEventListener("sahcomed:read-updated", handler);
+  }, []);
+
   // ── Notification state ────────────────────────────────────
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount,   setUnreadCount]   = useState(0);
@@ -252,6 +259,8 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
         prev.map((n) => n._id === id ? { ...n, isRead: true } : n)
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
+      // Notify NotificationsPage + dashboards to sync
+      window.dispatchEvent(new CustomEvent("sahcomed:read-updated"));
     } catch {
       // ignore
     }
@@ -263,6 +272,8 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
       await api.patch("/v1/notifications/read-all", {});
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
+      // Notify NotificationsPage + dashboards to sync
+      window.dispatchEvent(new CustomEvent("sahcomed:read-updated"));
     } catch {
       // ignore
     } finally {

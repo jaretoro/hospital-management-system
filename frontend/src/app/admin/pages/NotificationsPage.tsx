@@ -132,11 +132,15 @@ export default function NotificationsPage() {
     }
   };
 
-  // Fix 2: listen for SSE-driven refresh event so list updates live
+  // Listen for new notifications (SSE) and read-status changes (bell/topbar)
   useEffect(() => {
     fetchNotifications();
     window.addEventListener("sahcomed:notification", fetchNotifications);
-    return () => window.removeEventListener("sahcomed:notification", fetchNotifications);
+    window.addEventListener("sahcomed:read-updated", fetchNotifications);
+    return () => {
+      window.removeEventListener("sahcomed:notification", fetchNotifications);
+      window.removeEventListener("sahcomed:read-updated", fetchNotifications);
+    };
   }, []);
 
   const handleMarkAsRead = async (id: string) => {
@@ -147,6 +151,8 @@ export default function NotificationsPage() {
       setNotifications((prev) =>
         prev.map((n) => n._id === id ? { ...n, isRead: true } : n)
       );
+      // Notify Topbar bell + dashboards to sync
+      window.dispatchEvent(new CustomEvent("sahcomed:read-updated"));
     } catch {
       // ignore
     }
@@ -157,6 +163,8 @@ export default function NotificationsPage() {
     try {
       await api.patch("/v1/notifications/read-all", {});
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      // Notify Topbar bell + dashboards to sync
+      window.dispatchEvent(new CustomEvent("sahcomed:read-updated"));
     } catch {
       // ignore
     } finally {
