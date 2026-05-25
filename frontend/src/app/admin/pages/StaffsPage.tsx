@@ -525,12 +525,12 @@ function MedicalRecordSlideOver({
     <>
       <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
       <div className="fixed top-0 right-0 h-full w-full max-w-2xl z-50 bg-white shadow-2xl overflow-y-auto">
-        <div className="p-8">
+        <div className="p-4 md:p-8">
           <button onClick={onClose} className="flex items-center gap-2 text-primary-500 font-medium text-sm mb-6 hover:underline">
             <ArrowLeft size={16} /> Go back
           </button>
           <h2 className="text-xl font-bold text-slate-800 text-center mb-8">Medical Record</h2>
-          <div className="flex justify-between mb-8">
+          <div className="flex flex-col sm:flex-row sm:justify-between gap-3 mb-8">
             <div>
               <p className="text-sm text-slate-500">
                 Date: <span className="text-slate-700 font-medium">
@@ -559,7 +559,7 @@ function MedicalRecordSlideOver({
           {record.vitals && (
             <div className="border border-slate-100 rounded-xl p-5 mb-4">
               <h3 className="text-sm font-bold text-slate-700 mb-3">❤️ Vitals</h3>
-              <div className="grid grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
                 {[
                   { label: "Blood pressure", value: record.vitals.bloodPressure },
                   { label: "Heart rate",     value: `${record.vitals.heartRate}bpm` },
@@ -722,7 +722,7 @@ function PatientDetailView({
           )}
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-5">
           {infoFields.map((field) => (
             <div key={field.label}>
               <p className="text-xs text-slate-400 mb-0.5">{field.label}</p>
@@ -979,8 +979,8 @@ export default function StaffsPage() {
     <div className="flex flex-col gap-5">
 
       {/* Toolbar */}
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-0 max-w-sm">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-500" />
           <input
             type="search"
@@ -990,8 +990,8 @@ export default function StaffsPage() {
             className="w-full h-10 pl-10 pr-4 rounded-full border border-slate-200 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
           />
         </div>
-        <div className="h-6 w-px bg-slate-200" />
-        <div className="flex items-center gap-3 text-sm">
+        <div className="hidden sm:block h-6 w-px bg-slate-200" />
+        <div className="flex items-center gap-3 text-sm flex-wrap">
           <div className="flex items-center gap-1.5 text-slate-400">
             <SlidersHorizontal size={14} />
             <span>Sort by</span>
@@ -1022,7 +1022,8 @@ export default function StaffsPage() {
 
       {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[600px]">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
               <th className="text-left text-xs font-bold text-slate-600 uppercase tracking-wider px-6 py-4">Patient Name</th>
@@ -1077,6 +1078,7 @@ export default function StaffsPage() {
             )}
           </tbody>
         </table>
+        </div>
 
         {/* Pagination */}
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100">

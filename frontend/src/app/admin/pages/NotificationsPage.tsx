@@ -206,8 +206,8 @@ export default function NotificationsPage() {
     <div className="flex flex-col gap-5">
 
       {/* ── Toolbar ─────────────────────────────────────────── */}
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-0 max-w-sm">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-500" />
           <input
             type="search"
@@ -218,7 +218,7 @@ export default function NotificationsPage() {
           />
         </div>
 
-        <div className="h-6 w-px bg-slate-200" />
+        <div className="hidden sm:block h-6 w-px bg-slate-200" />
 
         <div className="flex items-center gap-3 text-sm">
           <div className="flex items-center gap-1.5 text-slate-400">
@@ -260,7 +260,7 @@ export default function NotificationsPage() {
           <button
             onClick={handleMarkAllRead}
             disabled={marking}
-            className="ml-auto text-sm text-primary-500 font-medium hover:underline disabled:opacity-50"
+            className="sm:ml-auto text-sm text-primary-500 font-medium hover:underline disabled:opacity-50 self-start sm:self-auto"
           >
             {marking ? "Marking..." : "Mark all as read"}
           </button>

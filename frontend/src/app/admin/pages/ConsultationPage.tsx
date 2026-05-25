@@ -176,7 +176,7 @@ function ConsultationDetailView({
         </h2>
 
         {/* Meta */}
-        <div className="flex justify-between mb-6 pb-6 border-b border-slate-100">
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-3 mb-6 pb-6 border-b border-slate-100">
           <div>
             <p className="text-sm text-slate-500">
               Date: <span className="font-medium text-slate-700">
@@ -207,7 +207,7 @@ function ConsultationDetailView({
         {consultation.vitals && (
           <div className="border border-slate-100 rounded-xl p-5 mb-4">
             <h3 className="text-sm font-bold text-slate-700 mb-4">❤️ Vitals</h3>
-            <div className="grid grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
               {[
                 { label: "Blood pressure", value: consultation.vitals.bloodPressure },
                 { label: "Heart rate",     value: `${consultation.vitals.heartRate}bpm` },
@@ -368,7 +368,8 @@ export default function ConsultationPage() {
   return (
     <div className="flex flex-col gap-5">
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px]">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
               <th className="text-left text-xs font-bold text-slate-600 uppercase tracking-wider px-6 py-4">Patient Name</th>
@@ -433,6 +434,7 @@ export default function ConsultationPage() {
             )}
           </tbody>
         </table>
+        </div>
 
         {/* Pagination */}
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100">

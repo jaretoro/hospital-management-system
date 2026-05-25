@@ -340,7 +340,7 @@ export default function DashboardPage() {
     val === null || dashLoading ? <LoadingSpinner size="sm" /> : String(val);
 
   return (
-    <div className="flex gap-6">
+    <div className="flex flex-col lg:flex-row gap-6">
 
       {/* ── Main Content ──────────────────────────────────── */}
       <div className="flex-1 flex flex-col gap-6 min-w-0">
@@ -423,7 +423,8 @@ export default function DashboardPage() {
           ) : stockMeds.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-8">All medications are well stocked.</p>
           ) : (
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[400px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
                   <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 rounded-l-lg">Medications</th>
@@ -453,12 +454,13 @@ export default function DashboardPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>
 
       {/* ── Right Panel ───────────────────────────────────── */}
-      <div className="w-72 shrink-0 flex flex-col gap-6">
+      <div className="w-full lg:w-72 lg:shrink-0 flex flex-col gap-6">
 
         {/* Calendar */}
         <Calendar />

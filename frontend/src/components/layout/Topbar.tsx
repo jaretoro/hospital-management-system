@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import { Bell, ChevronDown, Search, X } from "lucide-react";
+import { Bell, ChevronDown, Search, X, Menu } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { getUser } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface TopbarProps {
-  sidebarCollapsed: boolean;
-  pageTitle:        string;
+  pageTitle:         string;
+  onMobileMenuClick: () => void;
 }
 
 interface Notification {
@@ -90,7 +90,7 @@ function NotifIcon({ type }: { type: string }) {
   );
 }
 
-export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
+export function Topbar({ pageTitle, onMobileMenuClick }: TopbarProps) {
   const navigate  = useNavigate();
   const location  = useLocation();
   const isDoctor  = location.pathname.startsWith("/doctor");
@@ -292,18 +292,26 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
 
   return (
     <header
-      className="fixed top-0 right-0 z-20 flex items-center gap-6 px-8 bg-white border-b border-slate-100"
+      className="fixed top-0 right-0 z-20 flex items-center gap-3 md:gap-6 px-4 md:px-8 bg-white border-b border-slate-100"
       style={{
-        left:       sidebarCollapsed ? "72px" : "260px",
+        left:       `var(--sidebar-width, 0px)`,
         height:     "64px",
         transition: "left 250ms cubic-bezier(0.4,0,0.2,1)",
       }}
     >
-      {/* Page title */}
-      <h1 className="text-xl font-bold text-slate-800 shrink-0">{pageTitle}</h1>
+      {/* Hamburger — mobile only */}
+      <button
+        onClick={onMobileMenuClick}
+        className="lg:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors shrink-0"
+      >
+        <Menu size={20} />
+      </button>
 
-      {/* Search */}
-      <div className="flex-1 max-w-2xl mx-auto">
+      {/* Page title */}
+      <h1 className="text-base md:text-xl font-bold text-slate-800 shrink-0">{pageTitle}</h1>
+
+      {/* Search — hidden on small mobile, visible from md */}
+      <div className="hidden sm:block flex-1 max-w-2xl mx-auto">
         <div className="relative">
           <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-primary-500" />
           <input

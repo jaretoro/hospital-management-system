@@ -215,7 +215,7 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="bg-white rounded-2xl border border-slate-100 p-8">
+      <div className="bg-white rounded-2xl border border-slate-100 p-6 md:p-8">
         <div className="flex items-center gap-4 mb-8">
           <ProfileAvatar name={profile.fullName} avatarUrl={null} />
           <button
@@ -225,7 +225,7 @@ export default function ProfilePage() {
             ✏️ Edit
           </button>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-6">
           <InfoField label="Full name"     value={profile.fullName}    />
           <InfoField label="Email address" value={profile.email}       />
           <InfoField label="Phone number"  value={profile.phoneNumber} />
@@ -235,7 +235,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-100 p-8">
+      <div className="bg-white rounded-2xl border border-slate-100 p-6 md:p-8">
         <h2 className="text-base font-bold text-slate-800 mb-5">Account activity</h2>
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between p-5 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">

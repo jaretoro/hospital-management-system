@@ -3,21 +3,24 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, Pill,
   FileBarChart2, Stethoscope, UserCircle,
-  Settings, LogOut, ChevronLeft, ChevronRight,
+  Settings, LogOut, ChevronLeft, ChevronRight, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { clearAuth } from "@/lib/auth";
 
 interface SidebarProps {
-  collapsed: boolean;
-  onToggle:  () => void;
-  role:      "admin" | "doctor";
+  collapsed:  boolean;
+  onToggle:   () => void;
+  role:       "admin" | "doctor";
+  // mobile drawer
+  mobileOpen: boolean;
+  onMobileClose: () => void;
 }
 
 interface NavItem {
-  label:  string;
-  to:     string;
-  icon:   React.ReactNode;
+  label:     string;
+  to:        string;
+  icon:      React.ReactNode;
   isLogout?: boolean;
 }
 
@@ -49,7 +52,7 @@ const DOCTOR_BOTTOM_ITEMS: NavItem[] = [
   { label: "Logout",   to: "/login",           icon: <LogOut   size={20} />, isLogout: true },
 ];
 
-export function Sidebar({ collapsed, onToggle, role }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, role, mobileOpen, onMobileClose }: SidebarProps) {
   const navigate  = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -61,25 +64,33 @@ export function Sidebar({ collapsed, onToggle, role }: SidebarProps) {
     navigate("/login");
   };
 
-  return (
-    <>
-      <aside className={cn(
-        "fixed left-0 top-0 h-full z-30 flex flex-col bg-white border-r border-slate-100 sidebar-transition",
-        collapsed ? "w-sidebar-w-sm" : "w-sidebar-w"
+  const sidebarContent = (isMobile: boolean) => (
+    <div className="flex flex-col h-full">
+      {/* Logo */}
+      <div className={cn(
+        "flex items-center h-16 shrink-0 gap-2",
+        isMobile
+          ? "justify-between px-6"
+          : collapsed ? "justify-center px-2" : "justify-between px-6"
       )}>
-        {/* Logo */}
-        <div className={cn(
-          "flex items-center h-topbar-h shrink-0 gap-2",
-          collapsed ? "justify-center px-2" : "justify-between px-6"
-        )}>
-          {collapsed ? (
-            <span className="font-bold text-primary-500 text-lg">S</span>
+        <span className="text-xl font-bold tracking-tight">
+          {!isMobile && collapsed ? (
+            <span className="text-primary-500">S</span>
           ) : (
-            <span className="text-xl font-bold tracking-tight">
+            <>
               <span className="text-slate-700">SAHCO</span>
               <span className="text-primary-500">Med</span>
-            </span>
+            </>
           )}
+        </span>
+        {isMobile ? (
+          <button
+            onClick={onMobileClose}
+            className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        ) : (
           <button
             type="button"
             onClick={onToggle}
@@ -88,39 +99,76 @@ export function Sidebar({ collapsed, onToggle, role }: SidebarProps) {
           >
             {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           </button>
-        </div>
+        )}
+      </div>
 
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-6 px-4 flex flex-col gap-2">
-          {NAV_ITEMS.map((item) => (
-            <SidebarLink key={item.to} item={item} collapsed={collapsed} />
-          ))}
-        </nav>
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto py-6 px-4 flex flex-col gap-2">
+        {NAV_ITEMS.map((item) => (
+          <SidebarLink
+            key={item.to}
+            item={item}
+            collapsed={!isMobile && collapsed}
+            onClick={isMobile ? onMobileClose : undefined}
+          />
+        ))}
+      </nav>
 
-        {/* Bottom */}
-        <div className="px-4 py-6 flex flex-col gap-2">
-          {BOTTOM_ITEMS.map((item) => (
-            item.isLogout ? (
-              <button
-                key={item.to}
-                onClick={() => setShowLogoutConfirm(true)}
-                title={collapsed ? item.label : undefined}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 text-sm font-medium w-full",
-                  collapsed && "justify-center",
-                  "text-slate-600 hover:bg-red-50 hover:text-red-500"
-                )}
-              >
-                <span className="shrink-0 text-primary-500">
-                  {item.icon}
-                </span>
-                {!collapsed && <span>{item.label}</span>}
-              </button>
-            ) : (
-              <SidebarLink key={item.to} item={item} collapsed={collapsed} />
-            )
-          ))}
-        </div>
+      {/* Bottom */}
+      <div className="px-4 py-6 flex flex-col gap-2">
+        {BOTTOM_ITEMS.map((item) => (
+          item.isLogout ? (
+            <button
+              key={item.to}
+              onClick={() => setShowLogoutConfirm(true)}
+              title={!isMobile && collapsed ? item.label : undefined}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 text-sm font-medium w-full",
+                !isMobile && collapsed && "justify-center",
+                "text-slate-600 hover:bg-red-50 hover:text-red-500"
+              )}
+            >
+              <span className="shrink-0 text-primary-500">{item.icon}</span>
+              {(isMobile || !collapsed) && <span>{item.label}</span>}
+            </button>
+          ) : (
+            <SidebarLink
+              key={item.to}
+              item={item}
+              collapsed={!isMobile && collapsed}
+              onClick={isMobile ? onMobileClose : undefined}
+            />
+          )
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {/* ── Desktop sidebar (lg+) ───────────────────────────── */}
+      <aside className={cn(
+        "hidden lg:flex fixed left-0 top-0 h-full z-30 flex-col bg-white border-r border-slate-100 sidebar-transition",
+        collapsed ? "w-sidebar-w-sm" : "w-sidebar-w"
+      )}>
+        {sidebarContent(false)}
+      </aside>
+
+      {/* ── Mobile drawer (< lg) ────────────────────────────── */}
+      {/* Overlay */}
+      {mobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-40 bg-black/40"
+          onClick={onMobileClose}
+        />
+      )}
+      {/* Drawer */}
+      <aside className={cn(
+        "lg:hidden fixed left-0 top-0 h-full z-50 w-72 bg-white border-r border-slate-100 flex flex-col",
+        "transition-transform duration-300",
+        mobileOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        {sidebarContent(true)}
       </aside>
 
       {/* Logout confirmation modal */}
@@ -160,11 +208,16 @@ export function Sidebar({ collapsed, onToggle, role }: SidebarProps) {
   );
 }
 
-function SidebarLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
+function SidebarLink({
+  item, collapsed, onClick,
+}: {
+  item: NavItem; collapsed: boolean; onClick?: () => void;
+}) {
   return (
     <NavLink
       to={item.to}
       title={collapsed ? item.label : undefined}
+      onClick={onClick}
       className={({ isActive }) =>
         cn(
           "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 text-sm font-medium",

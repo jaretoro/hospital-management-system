@@ -548,8 +548,8 @@ export default function MedicationsPage() {
     <div className="flex flex-col gap-5">
 
       {/* Toolbar */}
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-0 max-w-sm">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-500" />
           <input
             type="search"
@@ -559,8 +559,8 @@ export default function MedicationsPage() {
             className="w-full h-10 pl-10 pr-4 rounded-full border border-slate-200 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
           />
         </div>
-        <div className="h-6 w-px bg-slate-200" />
-        <div className="flex items-center gap-3 text-sm">
+        <div className="hidden sm:block h-6 w-px bg-slate-200" />
+        <div className="flex items-center gap-3 text-sm flex-wrap">
           <div className="flex items-center gap-1.5 text-slate-400">
             <SlidersHorizontal size={14} />
             <span>Sort by</span>
@@ -597,7 +597,8 @@ export default function MedicationsPage() {
 
       {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px]">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
               <th className="text-left text-xs font-bold text-slate-600 uppercase tracking-wider px-4 py-4">Medication</th>
@@ -654,6 +655,7 @@ export default function MedicationsPage() {
             )}
           </tbody>
         </table>
+        </div>
 
         {/* Pagination */}
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100">

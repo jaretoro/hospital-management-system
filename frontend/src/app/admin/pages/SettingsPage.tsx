@@ -138,7 +138,7 @@ export default function SettingsPage() {
     <div className="flex flex-col gap-6 max-w-2xl">
 
       {/* ── Notification Settings ──────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-slate-100 p-8">
+      <div className="bg-white rounded-2xl border border-slate-100 p-5 md:p-8">
         <SectionHeader
           icon={
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">

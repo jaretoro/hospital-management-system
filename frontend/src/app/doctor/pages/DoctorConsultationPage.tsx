@@ -175,15 +175,15 @@ function MedicalRecordView({
       <button onClick={onBack} className="flex items-center gap-2 text-primary-500 font-medium text-sm hover:underline w-fit">
         <ArrowLeft size={16} /> Go back
       </button>
-      <div className="bg-white rounded-2xl border border-slate-100 p-8">
+      <div className="bg-white rounded-2xl border border-slate-100 p-4 md:p-8">
         <h2 className="text-xl font-bold text-slate-800 text-center mb-8">Medical Record</h2>
 
-        <div className="flex justify-between mb-6 pb-6 border-b border-slate-100">
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-3 mb-6 pb-6 border-b border-slate-100">
           <div>
             <p className="text-sm text-slate-500">Date: <span className="font-medium text-slate-700">{new Date(consultation.checkInTime).toLocaleDateString()}</span></p>
             <p className="text-sm text-slate-500 mt-1">Doctor: <span className="font-medium text-slate-700">{consultation.attendedBy?.fullName ?? "—"}</span></p>
           </div>
-          <div className="text-right">
+          <div className="sm:text-right">
             <p className="text-sm text-slate-500">Patient: <span className="font-medium text-slate-700">{consultation.patientName}</span></p>
             <p className="text-sm text-slate-500 mt-1">
               Time: <span className="font-medium text-slate-700">
@@ -196,7 +196,7 @@ function MedicalRecordView({
         {consultation.vitals && (
           <div className="border border-slate-100 rounded-xl p-5 mb-4">
             <h3 className="text-sm font-bold text-slate-700 mb-4">❤️ Vitals</h3>
-            <div className="grid grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
               {[
                 { label: "Blood pressure", value: consultation.vitals.bloodPressure },
                 { label: "Heart rate",     value: `${consultation.vitals.heartRate}bpm` },
@@ -352,10 +352,10 @@ function MedicalRecordEdit({
         <ArrowLeft size={16} /> Go back
       </button>
 
-      <div className="bg-white rounded-2xl border border-slate-100 p-8">
+      <div className="bg-white rounded-2xl border border-slate-100 p-4 md:p-8">
         <h2 className="text-xl font-bold text-slate-800 text-center mb-8">Medical Record</h2>
 
-        <div className="flex justify-between mb-6 pb-6 border-b border-slate-100">
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-3 mb-6 pb-6 border-b border-slate-100">
           <div>
             <p className="text-sm text-slate-500">
               Date: <span className="font-medium text-slate-700">
@@ -363,7 +363,7 @@ function MedicalRecordEdit({
               </span>
             </p>
           </div>
-          <div className="text-right">
+          <div className="sm:text-right">
             <p className="text-sm text-slate-500">
               Patient: <span className="font-medium text-slate-700">{consultation.patientName}</span>
             </p>
@@ -379,7 +379,7 @@ function MedicalRecordEdit({
         {consultation.vitals && (
           <div className="border border-slate-100 rounded-xl p-5 mb-4">
             <h3 className="text-sm font-bold text-slate-700 mb-4">❤️ Vitals</h3>
-            <div className="grid grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
               {[
                 { label: "Blood pressure", value: consultation.vitals.bloodPressure },
                 { label: "Heart rate",     value: `${consultation.vitals.heartRate}bpm` },
@@ -441,9 +441,9 @@ function MedicalRecordEdit({
           ) : (
             <div className="flex flex-col gap-3">
               {prescription.map((item) => (
-                <div key={item.id} className="flex items-start gap-3">
+                <div key={item.id} className="flex flex-col sm:flex-row items-start gap-3">
                   {/* Medication — combo: type freely or pick from suggestions */}
-                  <div className="flex flex-col gap-1 flex-1 relative">
+                  <div className="flex flex-col gap-1 w-full sm:flex-1 relative">
                     <input
                       placeholder="Type or select medication"
                       value={item.medicationName}
@@ -478,7 +478,7 @@ function MedicalRecordEdit({
                   </div>
 
                   {/* Instructions */}
-                  <div className="flex flex-col gap-1 w-48">
+                  <div className="flex flex-col gap-1 w-full sm:w-48">
                     <input
                       placeholder="e.g. 1 tab tds x 3/7"
                       value={item.instructions}
@@ -492,7 +492,7 @@ function MedicalRecordEdit({
                   </div>
 
                   {/* Quantity */}
-                  <div className="flex flex-col gap-1 w-24">
+                  <div className="flex flex-col gap-1 w-full sm:w-24">
                     <input
                       type="number"
                       placeholder="Qty"
@@ -657,7 +657,8 @@ export default function DoctorConsultationPage() {
   return (
     <div className="flex flex-col gap-5">
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px]">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
               <th className="text-left text-xs font-bold text-slate-600 uppercase tracking-wider px-6 py-4">Patient Name</th>
@@ -728,6 +729,7 @@ export default function DoctorConsultationPage() {
             )}
           </tbody>
         </table>
+        </div>
 
         {/* Pagination */}
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100">

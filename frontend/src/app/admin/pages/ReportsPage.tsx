@@ -186,9 +186,9 @@ export default function ReportsPage() {
       {/* ── Report table ──────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
 
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 print:hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6 py-4 border-b border-slate-100 print:hidden">
           <h2 className="text-base font-bold text-slate-800">Diagnosis summary report</h2>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             <select
               value={period}
               onChange={(e) => handlePeriodChange(e.target.value as Period)}
@@ -219,7 +219,8 @@ export default function ReportsPage() {
           </h2>
         </div>
 
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[480px]">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
               <th className="text-left text-xs font-bold text-slate-600 uppercase tracking-wider px-6 py-4">Diagnosis</th>
@@ -259,6 +260,7 @@ export default function ReportsPage() {
             )}
           </tbody>
         </table>
+        </div>
 
         {/* Pagination */}
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 print:hidden">

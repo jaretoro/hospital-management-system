@@ -278,11 +278,11 @@ export default function DoctorDashboardPage() {
     <div className="flex flex-col gap-6">
 
       {/* ── Row 1: Greeting + Calendar ─────────────────────── */}
-      <div className="flex gap-6">
-        <div className="flex-1 bg-white rounded-2xl border border-slate-100 p-8 flex items-center justify-between">
+      <div className="flex flex-col lg:flex-row gap-6">
+        <div className="flex-1 bg-white rounded-2xl border border-slate-100 p-6 md:p-8 flex items-center justify-between">
           <div className="flex flex-col gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-primary-500">{greeting}</h1>
+              <h1 className="text-xl md:text-2xl font-bold text-primary-500">{greeting}</h1>
               <p className="text-sm text-slate-500 mt-1">Here's your schedule for today</p>
             </div>
             <button
@@ -292,15 +292,15 @@ export default function DoctorDashboardPage() {
               Start Consultation
             </button>
           </div>
-          <img src={stethoscope} alt="Stethoscope" className="w-48 h-auto shrink-0 object-contain" />
+          <img src={stethoscope} alt="Stethoscope" className="w-28 md:w-48 h-auto shrink-0 object-contain" />
         </div>
-        <div className="w-72 shrink-0">
+        <div className="w-full lg:w-72 lg:shrink-0">
           <Calendar />
         </div>
       </div>
 
       {/* ── Row 2: Chart + Notifications ───────────────────── */}
-      <div className="flex gap-6">
+      <div className="flex flex-col lg:flex-row gap-6">
         <div className="flex-1 bg-white rounded-2xl border border-slate-100 p-6">
           <div className="flex items-center justify-between mb-1">
             <h2 className="text-base font-bold text-slate-800">Report analysis</h2>
@@ -344,7 +344,7 @@ export default function DoctorDashboardPage() {
         </div>
 
         {/* Notifications — real data */}
-        <div className="w-72 shrink-0 bg-white rounded-2xl border border-slate-100 p-5">
+        <div className="w-full lg:w-72 lg:shrink-0 bg-white rounded-2xl border border-slate-100 p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-bold text-slate-800">Notifications</h2>
             <button
@@ -381,7 +381,7 @@ export default function DoctorDashboardPage() {
       </div>
 
       {/* ── Row 3: Patient queue + Recent consultations ─────── */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
         {/* Patient queue — real */}
         <div className="bg-white rounded-2xl border border-slate-100 p-6">
@@ -403,19 +403,19 @@ export default function DoctorDashboardPage() {
           ) : (
             <div className="flex flex-col gap-3">
               {queue.map((patient) => (
-                <div key={patient._id} className="flex items-center gap-3">
+                <div key={patient._id} className="flex items-center gap-2 md:gap-3">
                   <StaffAvatar name={patient.patientName} />
-                  <span className="text-sm font-medium text-slate-700 w-28 shrink-0 truncate">
+                  <span className="text-sm font-medium text-slate-700 flex-1 min-w-0 truncate">
                     {patient.patientName}
                   </span>
-                  <span className="text-sm text-slate-400 shrink-0">{patient.staffNumber}</span>
-                  <div className="flex-1 flex justify-end items-center gap-2">
+                  <span className="text-xs text-slate-400 shrink-0 hidden sm:block">{patient.staffNumber}</span>
+                  <div className="flex items-center gap-1 md:gap-2 shrink-0">
                     <QueueStatusBadge status={
                       patient.status === "in_consultation" ? "In consultation" : "Waiting"
                     } />
                     <button
                       onClick={() => navigate("/doctor/consultation")}
-                      className="h-8 px-4 rounded-lg bg-primary-500 text-white text-xs font-semibold hover:bg-primary-600 transition-colors shrink-0"
+                      className="h-8 px-3 md:px-4 rounded-lg bg-primary-500 text-white text-xs font-semibold hover:bg-primary-600 transition-colors shrink-0"
                     >
                       Start
                     </button>
@@ -442,11 +442,11 @@ export default function DoctorDashboardPage() {
               {recentDone.map((item) => (
                 <div key={item._id} className="flex items-center gap-3">
                   <StaffAvatar name={item.patientName} />
-                  <span className="text-sm font-medium text-slate-700 w-28 shrink-0 truncate">
+                  <span className="text-sm font-medium text-slate-700 flex-1 min-w-0 truncate">
                     {item.patientName}
                   </span>
-                  <span className="text-sm text-slate-400 shrink-0">{item.staffNumber}</span>
-                  <span className="text-sm text-slate-400 ml-auto shrink-0">{timeAgo(item.checkInTime)}</span>
+                  <span className="text-xs text-slate-400 shrink-0 hidden sm:block">{item.staffNumber}</span>
+                  <span className="text-xs text-slate-400 shrink-0">{timeAgo(item.checkInTime)}</span>
                 </div>
               ))}
             </div>
