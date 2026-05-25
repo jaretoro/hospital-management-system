@@ -122,13 +122,29 @@ export default function ReportsPage() {
   }), [totalDiagnoses, totalPatients]);
 
   const handlePrint = () => window.print();
-  const handleDownloadPdf = () => {
-    const BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
-    const token = localStorage.getItem("token");
-    window.open(
-      `${BASE_URL}/v1/reports/download-pdf?period=${period.toLowerCase()}${token ? `&token=${token}` : ""}`,
-      "_blank"
-    );
+
+  const [downloading, setDownloading] = useState(false);
+  const handleDownloadPdf = async () => {
+    setDownloading(true);
+    try {
+      const BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${BASE_URL}/v1/reports/download-pdf?period=${period.toLowerCase()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to download PDF");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `SAHCOMed-report-${period.toLowerCase()}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Could not download PDF. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -189,9 +205,10 @@ export default function ReportsPage() {
             </button>
             <button
               onClick={handleDownloadPdf}
-              className="flex items-center gap-2 h-9 px-4 rounded-lg bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 transition-colors"
+              disabled={downloading}
+              className="flex items-center gap-2 h-9 px-4 rounded-lg bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 transition-colors disabled:opacity-70"
             >
-              <Download size={15} /> Download pdf
+              <Download size={15} /> {downloading ? "Downloading..." : "Download pdf"}
             </button>
           </div>
         </div>
