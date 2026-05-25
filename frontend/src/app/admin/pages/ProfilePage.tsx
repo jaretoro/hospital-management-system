@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from "react";
-import { X, Camera } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { getUser, saveAuth, getToken } from "@/lib/auth";
@@ -17,10 +17,11 @@ interface UserProfile {
   updatedAt:   string;
 }
 
-const ACCOUNT_ACTIVITY = [
-  { id: 1, title: "Last Login",      date: "March 13, 2026 at 9:30 AM", ipAddress: "From 192.168.11.1" },
-  { id: 2, title: "Account Created", date: "January 25, 2026",          ipAddress: "From 192.168.11.1" },
-];
+function formatDateTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("en-GB", {
+    day: "numeric", month: "long", year: "numeric",
+  });
+}
 
 function ProfileAvatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
   const initials = name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
@@ -62,24 +63,14 @@ function EditProfileModal({
     fullName:    profile.fullName,
     email:       profile.email,
     phoneNumber: profile.phoneNumber,
-    role:        profile.role,
-    avatarUrl:   null as string | null,
+    // role is read-only — not editable by the user
   });
   const [errors, setErrors]   = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
-  const fileInputRef          = useRef<HTMLInputElement>(null);
 
   const set = (field: string, value: string) => {
     setForm((p) => ({ ...p, [field]: value }));
     setErrors((p) => ({ ...p, [field]: "" }));
-  };
-
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setForm((p) => ({ ...p, avatarUrl: reader.result as string }));
-    reader.readAsDataURL(file);
   };
 
   const validate = () => {
@@ -87,7 +78,6 @@ function EditProfileModal({
     if (!form.fullName.trim())    e.fullName    = "Full name is required";
     if (!form.email.trim())       e.email       = "Email is required";
     if (!form.phoneNumber.trim()) e.phoneNumber = "Phone number is required";
-    if (!form.role.trim())        e.role        = "Role is required";
     return e;
   };
 
@@ -104,19 +94,22 @@ function EditProfileModal({
         fullName:    form.fullName,
         email:       form.email,
         phoneNumber: form.phoneNumber,
-        role:        form.role,
+        // role intentionally excluded — users cannot change their own role
       });
 
-      // Update localStorage with new name
+      // Update localStorage with new details
       const currentUser = getUser();
       const token       = getToken();
       if (currentUser && token) {
         saveAuth(token, {
           ...currentUser,
-          name: form.fullName,
+          name:  form.fullName,
           email: form.email,
         });
       }
+
+      // Fix 2: notify Topbar to re-read name from localStorage
+      window.dispatchEvent(new CustomEvent("sahcomed:profile-updated"));
 
       onSave(response.data.user);
       onClose();
@@ -140,23 +133,10 @@ function EditProfileModal({
           </button>
         </div>
         <div className="p-6 flex flex-col gap-5">
-          {/* Photo */}
+          {/* Avatar — upload not available until backend supports it */}
           <div className="flex justify-start mb-2">
-            <div className="relative w-20 h-20">
-              {form.avatarUrl ? (
-                <img src={form.avatarUrl} alt="avatar" className="w-20 h-20 rounded-full object-cover" />
-              ) : (
-                <div className="w-20 h-20 rounded-full bg-primary-100 text-primary-500 font-bold flex items-center justify-center text-2xl">
-                  {initials}
-                </div>
-              )}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 transition-colors"
-              >
-                <Camera size={13} className="text-slate-600" />
-              </button>
-              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+            <div className="w-20 h-20 rounded-full bg-primary-100 text-primary-500 font-bold flex items-center justify-center text-2xl shrink-0">
+              {initials}
             </div>
           </div>
 
@@ -169,9 +149,15 @@ function EditProfileModal({
           <FormField label="Phone number" error={errors.phoneNumber}>
             <input className={inputClass(errors.phoneNumber)} placeholder="Enter phone number" value={form.phoneNumber} onChange={(e) => set("phoneNumber", e.target.value)} />
           </FormField>
-          <FormField label="Role" error={errors.role}>
-            <input className={inputClass(errors.role)} placeholder="Enter role" value={form.role} onChange={(e) => set("role", e.target.value)} />
-          </FormField>
+
+          {/* Role is read-only — cannot be self-assigned */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-slate-800">Role</label>
+            <div className="w-full h-12 px-4 rounded-xl border border-slate-100 bg-slate-50 text-sm text-slate-400 flex items-center capitalize">
+              {profile.role}
+            </div>
+            <p className="text-xs text-slate-400">Role can only be changed by an admin.</p>
+          </div>
 
           <button
             onClick={handleSave}
@@ -252,15 +238,18 @@ export default function ProfilePage() {
       <div className="bg-white rounded-2xl border border-slate-100 p-8">
         <h2 className="text-base font-bold text-slate-800 mb-5">Account activity</h2>
         <div className="flex flex-col gap-4">
-          {ACCOUNT_ACTIVITY.map((activity) => (
-            <div key={activity.id} className="flex items-center justify-between p-5 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">
-              <div className="flex flex-col gap-1">
-                <p className="text-sm font-bold text-slate-800">{activity.title}</p>
-                <p className="text-sm text-slate-500">{activity.date}</p>
-              </div>
-              <p className="text-sm text-slate-400">{activity.ipAddress}</p>
+          <div className="flex items-center justify-between p-5 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-bold text-slate-800">Account Created</p>
+              <p className="text-sm text-slate-500">{formatDateTime(profile.createdAt)}</p>
             </div>
-          ))}
+            <span className={cn(
+              "px-3 py-1 rounded-full text-xs font-medium",
+              profile.isActive ? "bg-green-50 text-green-600" : "bg-slate-100 text-slate-400"
+            )}>
+              {profile.isActive ? "Active" : "Inactive"}
+            </span>
+          </div>
         </div>
       </div>
 

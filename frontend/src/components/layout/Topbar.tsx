@@ -95,11 +95,11 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
   const location  = useLocation();
   const isDoctor  = location.pathname.startsWith("/doctor");
 
-  const user     = getUser();
-  const userName = user?.name ?? "User";
-  const userRole = user?.role === "doctor"
+  const [userInfo, setUserInfo] = useState(() => getUser());
+  const userName = userInfo?.name ?? "User";
+  const userRole = userInfo?.role === "doctor"
     ? "Doctor"
-    : user?.role === "nurse"
+    : userInfo?.role === "nurse"
     ? "Clinic manager"
     : "Admin";
   const initials = userName
@@ -108,6 +108,13 @@ export function Topbar({ sidebarCollapsed, pageTitle }: TopbarProps) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  // Fix 2: re-read user from localStorage when profile is updated
+  useEffect(() => {
+    const handleProfileUpdate = () => setUserInfo(getUser());
+    window.addEventListener("sahcomed:profile-updated", handleProfileUpdate);
+    return () => window.removeEventListener("sahcomed:profile-updated", handleProfileUpdate);
+  }, []);
 
   // ── Notification state ────────────────────────────────────
   const [notifications, setNotifications] = useState<Notification[]>([]);
