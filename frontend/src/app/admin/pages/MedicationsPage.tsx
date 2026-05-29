@@ -470,9 +470,7 @@ export default function MedicationsPage() {
         };
       }>(`/v1/medications?page=${page}&limit=${ITEMS_PER_PAGE}`);
       setMedications(response.data.medications);
-      // Backend totalPages = total (a known bug) — compute it correctly ourselves
-      const correctPages = Math.ceil((response.data.total ?? 1) / ITEMS_PER_PAGE) || 1;
-      setTotalPages(correctPages);
+      setTotalPages(response.data.totalPages || 1);
     } catch (err: any) {
       setError(err.message ?? "Failed to load medications");
     } finally {
