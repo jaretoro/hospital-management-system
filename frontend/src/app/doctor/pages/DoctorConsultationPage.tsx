@@ -404,18 +404,19 @@ function MedicalRecordEdit({
 
         {/* Diagnosis */}
         <div className="border border-slate-100 rounded-xl p-5 mb-4">
-          <h3 className="text-sm font-bold text-slate-700 mb-3">🧠 Diagnosis</h3>
+          <h3 className="text-sm font-bold text-slate-700 mb-1">🧠 Diagnosis</h3>
+          <p className="text-xs text-slate-400 mb-3">Keep this concise — e.g. "Malaria", "Hypertension", "URTI". Use the notes field below for detailed observations.</p>
           <textarea
-            rows={3}
-            placeholder="Enter diagnosis..."
+            rows={2}
+            placeholder="e.g. Malaria, Hypertension, URTI..."
             value={diagnosis}
             onChange={(e) => { setDiagnosis(e.target.value); setErrors((p) => ({ ...p, diagnosis: "" })); }}
             className={textareaClass("diagnosis")}
           />
           {errors.diagnosis && <p className="text-xs text-red-500 mt-1">{errors.diagnosis}</p>}
           <textarea
-            rows={3}
-            placeholder="Additional diagnosis notes (optional)..."
+            rows={4}
+            placeholder="Detailed clinical notes, observations, treatment plan... (optional)"
             value={diagnosisNotes}
             onChange={(e) => setDiagnosisNotes(e.target.value)}
             className={cn(textareaClass("diagnosisNotes"), "mt-3")}
