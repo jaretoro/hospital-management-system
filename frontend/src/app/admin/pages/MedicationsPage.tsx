@@ -456,7 +456,7 @@ export default function MedicationsPage() {
   const [totalPages, setTotalPages]    = useState(1);
 
   // ── Fetch medications ─────────────────────────────────────
-  const fetchMedications = async () => {
+  const fetchMedications = async (page = currentPage) => {
     try {
       setLoading(true);
       setError(null);
@@ -468,9 +468,11 @@ export default function MedicationsPage() {
           total: number;
           totalPages: number;
         };
-      }>(`/v1/medications?page=${currentPage}&limit=${ITEMS_PER_PAGE}`);
+      }>(`/v1/medications?page=${page}&limit=${ITEMS_PER_PAGE}`);
       setMedications(response.data.medications);
-      setTotalPages(response.data.totalPages || 1);
+      // Backend totalPages = total (a known bug) — compute it correctly ourselves
+      const correctPages = Math.ceil((response.data.total ?? 1) / ITEMS_PER_PAGE) || 1;
+      setTotalPages(correctPages);
     } catch (err: any) {
       setError(err.message ?? "Failed to load medications");
     } finally {
@@ -478,7 +480,7 @@ export default function MedicationsPage() {
     }
   };
 
-  useEffect(() => { fetchMedications(); }, [currentPage]);
+  useEffect(() => { fetchMedications(currentPage); }, [currentPage]);
 
   // ── Sort ──────────────────────────────────────────────────
   const handleSort = (field: SortField) => {
@@ -506,7 +508,10 @@ export default function MedicationsPage() {
 
   // ── CRUD ──────────────────────────────────────────────────
   const handleAdd = (med: Medication) => {
-    setMedications((p) => [med, ...p]);
+    // Re-fetch page 1 so totalPages and ordering come from the server
+    setCurrentPage(1);
+    fetchMedications(1);
+    void med; // suppress unused-var lint; server response is authoritative
   };
 
   const handleUpdate = (updated: Medication) => {
@@ -516,8 +521,15 @@ export default function MedicationsPage() {
   const deleteSingle = async (id: string) => {
     try {
       await api.delete(`/v1/medications/${id}`);
-      setMedications((p) => p.filter((m) => m._id !== id));
       setOpenDropdown(null);
+      // If this was the last item on this page, go back one page
+      const remaining = medications.filter((m) => m._id !== id).length;
+      const targetPage = remaining === 0 && currentPage > 1 ? currentPage - 1 : currentPage;
+      if (targetPage !== currentPage) {
+        setCurrentPage(targetPage);
+      } else {
+        fetchMedications(targetPage);
+      }
     } catch (err: any) {
       if (
         err.message?.toLowerCase().includes("remaining stock") ||
@@ -553,7 +565,7 @@ export default function MedicationsPage() {
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-500" />
           <input
             type="search"
-            placeholder="Search medications"
+            placeholder="Search this page"
             value={search}
             onChange={(e) => { setSearch(e.target.value); }}
             className="w-full h-10 pl-10 pr-4 rounded-full border border-slate-200 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
