@@ -426,7 +426,7 @@ function ActionDropdown({
   return (
     <>
       <div className="fixed inset-0 z-10" onClick={onClose} />
-      <div className="absolute right-8 z-20 bg-white rounded-xl shadow-lg border border-slate-100 py-1 w-36">
+      <div className="absolute right-8 bottom-2 z-20 bg-white rounded-xl shadow-lg border border-slate-100 py-1 w-36">
         <button onClick={onEdit} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
           <Pencil size={15} className="text-slate-400" /> Edit
         </button>
